@@ -1,0 +1,7 @@
+{
+  "appId": "com.impulso.app",
+  "appName": "IMPULSO+",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
+

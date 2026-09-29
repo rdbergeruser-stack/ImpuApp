@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "ImpuApp",
+    "slug": "impulso-plus",
+    "version": "1.0.1",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "owner": "rdberger",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.rdberger.impuapp",
+      "versionCode": 2,
+      "adaptiveIcon": {
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/android-icon-foreground.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/icon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "91774873-2f63-4adf-893b-e550a1e30f87"
+      }
+    },
+    "plugins": [
+      "expo-asset"
+    ]
+  }
+}

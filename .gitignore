@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+package-lock.json.bak
+
+# Production Builds & Bundles
+dist/
+dist-ssr/
+build/
+*.apk
+*.aab
+
+# Expo, Metro & EAS
+.expo/
+.eas/
+.metro/
+.gradle/
+*.log
+
+# OS & Temp Files
+.DS_Store
+Thumbs.db
+*.tmp
+*.local
+
+# Prototypes & Local Automation Scripts
+stitch_reloj_tabata_gym-v2/
+*.bat
+qr_expo.png
