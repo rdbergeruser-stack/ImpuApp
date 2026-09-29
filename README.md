@@ -17,6 +17,12 @@
   <img src="https://img.shields.io/badge/TailwindCSS-v4-38B2AC.svg" alt="Tailwind CSS" />
 </p>
 
+<p align="center">
+  <a href="https://expo.dev/artifacts/eas/kYq81CxXrK4X4c8PMX_Ec47K5rw8ZwhqOTc0DlmYbls.apk">
+    <img src="https://img.shields.io/badge/📲_DESCARGAR_APK-v1.0.2_(Android)-00ff66?style=for-the-badge&logo=android&logoColor=black" alt="Descargar APK v1.0.2" />
+  </a>
+</p>
+
 ---
 
 ## 🚀 Características Principales
