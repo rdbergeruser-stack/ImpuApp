@@ -174,12 +174,12 @@ class AudioService {
     const isFemale = (gender === 'female' || gender === 'sofia');
     const isCountdown = (text === 'Tres' || text === 'Dos' || text === 'Uno' || text === '3' || text === '2' || text === '1');
     
-    // Valores por defecto calibrados para máxima naturalidad y ritmo:
+    // Valores por defecto calibrados para máxima naturalidad y distinción acústica:
     // Conteo 3-2-1: 1.25 para sincronía exacta con el segundo del reloj
-    // Sofía: 1.0 (tono natural femenino) y velocidad 1.02
-    // Mateo: 0.98 (tono masculino natural y firme) y velocidad 0.98
-    let defaultPitch = 1.0;
-    let defaultRate = isCountdown ? 1.25 : (isFemale ? 1.02 : 0.98);
+    // Sofía: 1.15 (tono femenino enérgico) y velocidad 1.02
+    // Mateo: 0.80 (tono masculino profundo y firme) y velocidad 0.96
+    let defaultPitch = isFemale ? 1.15 : 0.80;
+    let defaultRate = isCountdown ? 1.25 : (isFemale ? 1.02 : 0.96);
     
     if (typeof localStorage !== 'undefined' && !isCountdown) {
       try {
@@ -245,7 +245,7 @@ class AudioService {
       try {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'es-ES';
+        utterance.lang = 'es';
         utterance.pitch = pitch;
         utterance.rate = rate;
         if (gender === 'female' && this.femaleVoice) {
@@ -267,9 +267,9 @@ class AudioService {
     setTimeout(() => {
       this.playGo();
       if (gender === 'female') {
-        this.speak('¡Hola! Soy Sofía, tu entrenadora de ImpuApp. ¡Vamos con toda la energía!', { gender: 'female' });
+        this.speak('¡Hola! Soy Sofía, tu entrenadora de ImpuApp. ¡Vamos con toda la energía!', { gender: 'female', pitch: 1.15, rate: 1.02 });
       } else {
-        this.speak('¡Hola! Soy Mateo, tu entrenador de ImpuApp. ¡A darlo todo con fuerza!', { gender: 'male' });
+        this.speak('¡Hola! Soy Mateo, tu entrenador de ImpuApp. ¡A darlo todo con fuerza!', { gender: 'male', pitch: 0.80, rate: 0.96 });
       }
     }, 250);
   }

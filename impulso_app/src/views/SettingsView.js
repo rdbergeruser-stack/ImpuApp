@@ -412,7 +412,7 @@ export function renderSettings(container, navigate, params = {}) {
       audio.speak('¡Hola! Soy Sofía, tu entrenadora. Lista para dar tu máximo esfuerzo hoy.', { 
         gender: 'female', 
         voiceId: sofiaId, 
-        pitch: 1.0, 
+        pitch: 1.15, 
         rate: 1.02 
       });
       render();
@@ -437,8 +437,8 @@ export function renderSettings(container, navigate, params = {}) {
       audio.speak('¡Hola! Soy Mateo, tu entrenador. Mantén el ritmo y no te detengas.', { 
         gender: 'male', 
         voiceId: mateoId, 
-        pitch: 1.0, 
-        rate: 0.98 
+        pitch: 0.80, 
+        rate: 0.96 
       });
       render();
     });
@@ -449,7 +449,7 @@ export function renderSettings(container, navigate, params = {}) {
       audio.speak('¡Hola! Soy Sofía. Lista para dar tu máximo esfuerzo hoy.', { 
         gender: 'female', 
         voiceId: sofiaId, 
-        pitch: 1.0, 
+        pitch: 1.15, 
         rate: 1.02 
       });
     });
@@ -468,8 +468,8 @@ export function renderSettings(container, navigate, params = {}) {
       audio.speak('¡Hola! Soy Mateo. Mantén el ritmo y no te detengas.', { 
         gender: 'male', 
         voiceId: mateoId, 
-        pitch: 1.0, 
-        rate: 0.98 
+        pitch: 0.80, 
+        rate: 0.96 
       });
     });
 

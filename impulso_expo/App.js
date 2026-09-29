@@ -86,18 +86,29 @@ export default function App() {
 
   // Cargar lista de voces nativas disponibles en el dispositivo
   useEffect(() => {
+    let isMounted = true;
     async function loadNativeVoices() {
       try {
+        // Inicializar el subsistema TextToSpeech de Android con un micro-speak inocuo
+        try { Speech.speak('', { language: 'es' }); } catch (e) {}
         const voices = await Speech.getAvailableVoicesAsync();
-        const spanish = voices.filter(v => 
-          v.language && (v.language.toLowerCase().startsWith('es') || v.language.toLowerCase().startsWith('spa'))
-        );
-        setAvailableVoices(spanish.length > 0 ? spanish : voices);
+        if (voices && voices.length > 0 && isMounted) {
+          const spanish = voices.filter(v => 
+            v.language && (v.language.toLowerCase().startsWith('es') || v.language.toLowerCase().startsWith('spa'))
+          );
+          setAvailableVoices(spanish.length > 0 ? spanish : voices);
+        }
       } catch (err) {
         console.warn('Error loading voices:', err);
       }
     }
     loadNativeVoices();
+    // Reintentar tras 1.5s por si el daemon TTS del sistema tardó en inicializarse
+    const timer = setTimeout(loadNativeVoices, 1500);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
   }, []);
 
   // Inyectar catálogo de voces del dispositivo en cuanto se obtengan con indicación de género
@@ -157,12 +168,11 @@ export default function App() {
       const isSofia = (gender === 'female' || gender === 'sofia');
       const isCountdown = (text === 'Tres' || text === 'Dos' || text === 'Uno' || text === '3' || text === '2' || text === '1');
 
-      // Si empieza el conteo en 'Tres', detenemos cualquier frase anterior (para que 'Tres' arranque sin retraso).
-      // Para 'Dos' y 'Uno' NO llamamos stop() para mantener caliente el pipeline de audio en Android.
+      // Solo si arranca el conteo 3-2-1 en 'Tres' cancelamos frases largas previas para evitar retraso.
+      // IMPORTANTE: Para frases normales NUNCA llamamos Speech.stop() antes de speak() porque en Android
+      // TextToSpeech vacía la cola y descarta asíncronamente el speak inmediato.
       if (text === 'Tres' || text === '3') {
-        Speech.stop();
-      } else if (!isCountdown) {
-        Speech.stop();
+        try { Speech.stop(); } catch (e) {}
       }
 
       // 1. Si se pasó un voiceId específico
@@ -171,9 +181,7 @@ export default function App() {
         matchedVoice = availableVoices.find(v => v.identifier === voiceId);
       }
 
-      // 2. Selección fija de las dos voces elegidas por el usuario:
-      // - Sofía: 1ra voz de la lista (Índice 0)
-      // - Mateo: 6ta voz de la lista (Índice 5)
+      // 2. Si no hay voiceId, buscar voz según género en el catálogo disponible
       if (!matchedVoice && availableVoices.length > 0) {
         const spanishVoices = availableVoices.filter(v => 
           v.language && (v.language.toLowerCase().startsWith('es') || v.language.toLowerCase().startsWith('spa'))
@@ -181,44 +189,47 @@ export default function App() {
         const listToSearch = spanishVoices.length > 0 ? spanishVoices : availableVoices;
 
         if (isSofia) {
-          // 1ra voz (Sofía)
-          matchedVoice = listToSearch[0];
+          matchedVoice = listToSearch.find(isFemaleVoice) || listToSearch[0];
         } else {
-          // 6ta voz (Mateo)
-          if (listToSearch.length >= 6) {
-            matchedVoice = listToSearch[5];
-          } else {
-            matchedVoice = listToSearch.find(isMaleVoice) || listToSearch[listToSearch.length - 1];
-          }
+          matchedVoice = listToSearch.find(isMaleVoice) || (listToSearch.length >= 6 ? listToSearch[5] : listToSearch[listToSearch.length - 1]);
         }
       }
 
-      // Calibración acústica: para conteos 3-2-1 forzamos velocidad 1.25 para sincronización milimétrica con el reloj
-      const defaultPitch = 1.0;
-      const defaultRate = isCountdown ? 1.25 : (isSofia ? 1.02 : 0.98);
+      // 3. Calibración acústica nítida:
+      // Sofía: 1.15 (tono femenino enérgico, claro) y velocidad 1.02
+      // Mateo: 0.80 (tono masculino grave, firme) y velocidad 0.96
+      // Conteos 3-2-1: velocidad 1.25 para sincronía exacta con el segundero
+      const defaultPitch = isSofia ? 1.15 : 0.80;
+      const defaultRate = isCountdown ? 1.25 : (isSofia ? 1.02 : 0.96);
 
       const pitch = typeof pitchOverride === 'number' ? pitchOverride : defaultPitch;
       const rate = isCountdown ? 1.25 : (typeof rateOverride === 'number' ? rateOverride : defaultRate);
 
       const speakOptions = {
-        language: matchedVoice ? matchedVoice.language : 'es-ES',
+        language: 'es', // Usar código estándar 'es' para garantizar compatibilidad con cualquier variante regional (es-AR, es-US, es-ES)
         pitch: pitch,
         rate: rate,
+        volume: 1.0,
         onError: (err) => {
-          console.warn('Speech.speak standard error:', err);
+          console.warn('Speech.speak standard error, attempting fallback:', err);
           try {
-            Speech.speak(text, { pitch, rate });
+            Speech.speak(text, { language: 'es', pitch, rate, volume: 1.0 });
           } catch (e2) {}
         }
       };
 
-      if (matchedVoice && matchedVoice.identifier) {
+      // Asignar identificador de voz ÚNICAMENTE si no depende de streaming en la nube ('network')
+      // para asegurar reproducción instantánea y offline en la APK standalone
+      if (matchedVoice && matchedVoice.identifier && !matchedVoice.identifier.toLowerCase().includes('network')) {
         speakOptions.voice = matchedVoice.identifier;
       }
 
       Speech.speak(text, speakOptions);
     } catch (e) {
       console.warn('speakNative exception:', e);
+      try {
+        Speech.speak(text, { language: 'es', volume: 1.0 });
+      } catch (e2) {}
     }
   };
 
@@ -230,10 +241,10 @@ export default function App() {
       if (data.type === 'SPEECH_SPEAK') {
         speakNative(data.text, data.gender, data.pitch, data.rate, data.voiceId);
       } else if (data.type === 'SPEECH_STOP') {
-        Speech.stop();
+        try { Speech.stop(); } catch (e) {}
       } else if (data.type === 'SPEECH_PREWARM') {
         try {
-          Speech.speak(' ', { volume: 0, rate: 2.0 });
+          Speech.speak(' ', { language: 'es', volume: 0, rate: 2.0 });
         } catch (e) {}
       }
 
