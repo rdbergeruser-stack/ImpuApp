@@ -18,8 +18,8 @@
 </p>
 
 <p align="center">
-  <a href="https://expo.dev/artifacts/eas/b-wFa8FiP2JCKbVS_DzCcz_uh0SFv6y1KWHsRuqvR3Q.apk">
-    <img src="https://img.shields.io/badge/📲_DESCARGAR_APK-v1.0.3_(Android)-00ff66?style=for-the-badge&logo=android&logoColor=black" alt="Descargar APK v1.0.3" />
+  <a href="https://github.com/rdbergeruser-stack/ImpuApp/releases/latest/download/ImpuApp-v1.0.3.apk">
+    <img src="https://img.shields.io/badge/📲_DESCARGAR_APK-ImpuApp--v1.0.3.apk-00ff66?style=for-the-badge&logo=android&logoColor=black" alt="Descargar ImpuApp-v1.0.3.apk" />
   </a>
 </p>
 
