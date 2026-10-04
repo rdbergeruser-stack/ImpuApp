@@ -45,7 +45,7 @@ export function renderHistory(container, navigate) {
         <main class="w-full flex-1 px-4 py-3 overflow-y-auto no-scrollbar max-w-md mx-auto flex flex-col gap-3.5 pb-24">
           
           <!-- Summary Metrics Bento -->
-          <section class="grid grid-cols-3 gap-2 bg-surface-container rounded-2xl p-3 border border-outline-variant shadow-sm text-center">
+          <section class="grid grid-cols-3 gap-2 bg-surface-container rounded-2xl p-3 border border-outline-variant shadow-sm text-center shrink-0">
             <div>
               <span class="text-[10px] text-on-surface-variant uppercase font-bold block">Sesiones</span>
               <span class="font-headline text-2xl font-black text-primary mt-0.5 block">${totalWorkouts}</span>
@@ -61,9 +61,9 @@ export function renderHistory(container, navigate) {
           </section>
 
           <!-- Type Filter Buttons -->
-          <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+          <div class="flex items-center gap-2 overflow-x-auto no-scrollbar py-1 shrink-0 min-h-[42px]">
             ${['TODOS', 'TABATA', 'RUNNER', 'GYM'].map(t => `
-              <button data-type="${t}" class="btn-filter-type shrink-0 px-3.5 py-1.5 rounded-lg text-xs font-headline font-black transition-all active:scale-95 ${
+              <button data-type="${t}" class="btn-filter-type shrink-0 h-9 px-4 rounded-xl text-xs font-headline font-black flex items-center justify-center transition-all active:scale-95 ${
                 filterType === t
                   ? 'bg-surface-bright border border-primary-container text-primary-container shadow-sm'
                   : 'bg-surface-container border border-outline-variant text-on-surface-variant hover:text-on-surface'
@@ -76,7 +76,7 @@ export function renderHistory(container, navigate) {
           <!-- History Records List -->
           <div class="flex flex-col gap-3">
             ${totalWorkouts === 0 ? `
-              <div class="bg-surface-container rounded-3xl p-8 text-center border border-outline-variant flex flex-col items-center gap-3 shadow-sm my-4">
+              <div class="bg-surface-container rounded-3xl p-8 text-center border border-outline-variant flex flex-col items-center gap-3 shadow-sm my-4 shrink-0">
                 <div class="w-14 h-14 rounded-2xl bg-surface-container-high border border-outline-variant flex items-center justify-center text-primary-container">
                   <span class="material-symbols-outlined text-3xl">fitness_center</span>
                 </div>
@@ -88,17 +88,17 @@ export function renderHistory(container, navigate) {
                 </div>
               </div>
             ` : filtered.length === 0 ? `
-              <div class="bg-surface-container rounded-2xl p-6 text-center border border-outline-variant">
+              <div class="bg-surface-container rounded-2xl p-6 text-center border border-outline-variant shrink-0">
                 <span class="material-symbols-outlined text-3xl text-on-surface-variant mb-2">history</span>
                 <p class="text-xs text-on-surface-variant font-medium">Aún no hay entrenamientos registrados en esta categoría.</p>
               </div>
             ` : filtered.map(item => {
               const icon = item.type === 'runner' ? 'directions_run' : item.type === 'gym' ? 'fitness_center' : 'timer';
               return `
-                <article class="bg-surface-container rounded-2xl border border-outline-variant p-3.5 flex flex-col gap-2.5 shadow-sm">
+                <article class="bg-surface-container rounded-2xl border border-outline-variant p-3.5 flex flex-col gap-2.5 shadow-sm shrink-0">
                   <div class="flex items-center justify-between pb-2 border-b border-outline-variant/30">
                     <div class="flex items-center gap-2">
-                      <div class="w-8 h-8 rounded-lg bg-surface-container-high border border-outline-variant flex items-center justify-center text-primary-container">
+                      <div class="w-8 h-8 rounded-lg bg-surface-container-high border border-outline-variant flex items-center justify-center text-primary-container shrink-0">
                         <span class="material-symbols-outlined text-base">${icon}</span>
                       </div>
                       <div>
@@ -111,7 +111,7 @@ export function renderHistory(container, navigate) {
                       </div>
                     </div>
 
-                    <div class="text-right">
+                    <div class="text-right shrink-0">
                       <span class="font-headline text-base font-black text-primary-container tabular-nums block">
                         ${formatTime(item.durationSeconds)}
                       </span>
@@ -121,9 +121,9 @@ export function renderHistory(container, navigate) {
                     </div>
                   </div>
 
-                  <div class="flex items-center justify-between text-xs text-on-surface-variant">
-                    <span class="truncate max-w-[240px] text-[11px] font-medium">${item.summary || 'Entrenamiento completado'}</span>
-                    <div class="flex items-center gap-1 text-[11px] font-bold text-primary shrink-0">
+                  <div class="flex items-center justify-between text-xs text-on-surface-variant gap-2 mt-0.5">
+                    <span class="text-[11px] font-medium leading-snug flex-1">${item.summary || 'Entrenamiento completado'}</span>
+                    <div class="flex items-center gap-1 text-[11px] font-bold text-primary shrink-0 ml-2">
                       <span class="material-symbols-outlined text-sm text-tertiary-fixed">local_fire_department</span>
                       <span>~${item.caloriesEst || 100} kcal</span>
                     </div>

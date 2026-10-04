@@ -263,7 +263,7 @@ export function renderRoutinesHub(container, navigate, params = {}) {
       if (activeTab === 'gym') {
         navigate('gym-editor', { isNew: true });
       } else if (activeTab === 'tabata') {
-        navigate('tabata-config', { isNew: true });
+        navigate('tabata-config', { isNew: true, returnTo: 'routines-hub' });
       } else {
         navigate('runner-editor', { isNew: true });
       }
@@ -314,7 +314,7 @@ export function renderRoutinesHub(container, navigate, params = {}) {
         hapticTap();
         const id = btn.getAttribute('data-config-tabata');
         const preset = storage.getTabataPresetById(id);
-        if (preset) navigate('tabata-config', { preset });
+        if (preset) navigate('tabata-config', { preset, returnTo: 'routines-hub' });
       });
     });
 

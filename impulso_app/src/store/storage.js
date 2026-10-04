@@ -52,10 +52,64 @@ class StorageService {
         parsed.athleteStreakDays = 0;
         this.saveSettings({ ...DEFAULT_SETTINGS, ...parsed });
       }
-      return { ...DEFAULT_SETTINGS, ...parsed };
+      const settings = { ...DEFAULT_SETTINGS, ...parsed };
+      settings.athleteStreakDays = this.calculateStreak(this.getHistory());
+      return settings;
     } catch (e) {
       return DEFAULT_SETTINGS;
     }
+  }
+
+  calculateStreak(history) {
+    if (!Array.isArray(history) || history.length === 0) return 0;
+
+    const uniqueDays = new Set();
+    history.forEach(item => {
+      if (item && item.date) {
+        try {
+          const d = new Date(item.date);
+          if (!isNaN(d.getTime())) {
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            uniqueDays.add(`${y}-${m}-${day}`);
+          }
+        } catch (e) {}
+      }
+    });
+
+    if (uniqueDays.size === 0) return 0;
+
+    const toDateKey = (date) => {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
+
+    const now = new Date();
+    const todayKey = toDateKey(now);
+
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayKey = toDateKey(yesterday);
+
+    let checkDate;
+    if (uniqueDays.has(todayKey)) {
+      checkDate = new Date(now);
+    } else if (uniqueDays.has(yesterdayKey)) {
+      checkDate = new Date(yesterday);
+    } else {
+      return 0;
+    }
+
+    let streak = 0;
+    while (uniqueDays.has(toDateKey(checkDate))) {
+      streak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
+
+    return streak;
   }
 
   saveSettings(settings) {
@@ -231,7 +285,7 @@ class StorageService {
     localStorage.setItem(KEYS.HISTORY, JSON.stringify(history));
 
     const settings = this.getSettings();
-    settings.athleteStreakDays = (settings.athleteStreakDays || 0) + 1;
+    settings.athleteStreakDays = this.calculateStreak(history);
     this.saveSettings(settings);
 
     if (typeof window !== 'undefined' && window.ReactNativeWebView) {
@@ -249,6 +303,9 @@ class StorageService {
 
   clearHistory() {
     localStorage.setItem(KEYS.HISTORY, JSON.stringify([]));
+    const settings = this.getSettings();
+    settings.athleteStreakDays = 0;
+    this.saveSettings(settings);
     if (typeof window !== 'undefined' && window.ReactNativeWebView) {
       try {
         window.ReactNativeWebView.postMessage(JSON.stringify({

@@ -144,9 +144,19 @@ export function renderOnboarding(container, navigate) {
       const weightInput = document.getElementById('onboard-weight');
 
       const name = nameInput?.value.trim() || 'Atleta';
-      const age = parseInt(ageInput?.value) || 25;
-      const height = parseFloat(heightInput?.value) || 175;
-      const weight = parseFloat(weightInput?.value) || 70;
+      let age = parseInt(ageInput?.value);
+      if (isNaN(age) || age < 10) age = 10;
+      if (age > 110) age = 110;
+
+      let height = parseFloat(heightInput?.value);
+      if (isNaN(height) || height < 80) height = 80;
+      if (height > 250) height = 250;
+      height = Math.round(height);
+
+      let weight = parseFloat(weightInput?.value);
+      if (isNaN(weight) || weight < 30) weight = 30;
+      if (weight > 250) weight = 250;
+      weight = Math.round(weight * 10) / 10;
 
       const settings = storage.getSettings();
       settings.athleteName = name;

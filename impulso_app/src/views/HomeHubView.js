@@ -160,12 +160,12 @@ export function renderHomeHub(container, navigate) {
   // Mode buttons
   document.getElementById('btn-mode-tabata')?.addEventListener('click', () => {
     hapticTap();
-    navigate('tabata-config');
+    navigate('tabata-config', { returnTo: 'home' });
   });
 
   document.getElementById('btn-mode-runner')?.addEventListener('click', () => {
     hapticTap();
-    navigate('runner-catalog');
+    navigate('runner-catalog', { returnTo: 'home' });
   });
 
   document.getElementById('btn-mode-gym')?.addEventListener('click', () => {

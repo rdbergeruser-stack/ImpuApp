@@ -471,7 +471,7 @@ export function renderTabataLive(container, navigate, params = {}) {
       if (confirm('¿Deseas salir del entrenamiento actual?')) {
         if (timerTimeoutId) clearTimeout(timerTimeoutId);
         releaseWakeLock();
-        navigate('tabata-config');
+        navigate('tabata-config', { preset: config, returnTo: params && params.returnTo ? params.returnTo : 'home' });
       }
     });
   }

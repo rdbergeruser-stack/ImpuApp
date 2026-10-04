@@ -73,9 +73,40 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
   let restTimeoutId = null;
   let nextExpectedRestTick = 0;
   let restWasLastSet = false;
+  let restTargetEndTime = 0;
+  let workoutStartTime = Date.now();
 
   // WakeLock
   requestWakeLock();
+
+  // Background/Foreground synchronization
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') {
+      // Sincronizar cronómetro transcurrido de rutina
+      workoutElapsedSeconds = Math.max(workoutElapsedSeconds, Math.floor((Date.now() - workoutStartTime) / 1000));
+      const timerElem = document.getElementById('ui-gym-elapsed');
+      if (timerElem) timerElem.textContent = formatTime(workoutElapsedSeconds);
+
+      // Sincronizar temporizador de descanso
+      if (isResting && restTargetEndTime > 0) {
+        const remaining = Math.max(0, Math.round((restTargetEndTime - Date.now()) / 1000));
+        restRemaining = remaining;
+        updateRestUI();
+        if (restRemaining <= 0) {
+          restTick();
+        }
+      }
+    }
+  };
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+
+  const handleNativeRestCompleted = () => {
+    if (isResting) {
+      restRemaining = 0;
+      restTick();
+    }
+  };
+  window.addEventListener('nativeRestCompleted', handleNativeRestCompleted);
 
   // Voice announcement on initial load
   setTimeout(() => {
@@ -135,6 +166,11 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
     if (restRemaining <= 0) {
       if (restTimeoutId) clearTimeout(restTimeoutId);
       isResting = false;
+      if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+        try {
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'REST_TIMER_CANCEL' }));
+        } catch (e) {}
+      }
       audio.playRestComplete();
       if (restWasLastSet) {
         if (currentExIdx < exercises.length - 1) {
@@ -157,10 +193,26 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
     restTotal = seconds;
     restRemaining = seconds;
     restWasLastSet = wasLastSet;
+    restTargetEndTime = Date.now() + (seconds * 1000);
 
     if (restTimeoutId) clearTimeout(restTimeoutId);
     nextExpectedRestTick = Date.now() + 1000;
     scheduleNextRestTick();
+
+    if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+      try {
+        const curEx = exercises[currentExIdx];
+        const nextName = wasLastSet ? (currentExIdx < exercises.length - 1 ? exercises[currentExIdx + 1]?.name : 'Fin de rutina') : curEx?.name;
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'REST_TIMER_START',
+          seconds: seconds,
+          title: '⏰ ¡Descanso Terminado!',
+          body: wasLastSet
+            ? (currentExIdx < exercises.length - 1 ? `Siguiente ejercicio: ${nextName}` : '¡Último descanso concluido! Finaliza tu rutina.')
+            : `Descanso finalizado. ¡A por la siguiente serie de ${curEx?.name || 'Gimnasio'}!`
+        }));
+      } catch (e) {}
+    }
 
     render();
   }
@@ -169,6 +221,11 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
     hapticTap();
     if (restTimeoutId) clearTimeout(restTimeoutId);
     isResting = false;
+    if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+      try {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'REST_TIMER_CANCEL' }));
+      } catch (e) {}
+    }
     const curEx = exercises[currentExIdx];
     const isExerciseDone = (completedSets[curEx.id]?.length || 0) >= curEx.targetSets;
     if (isExerciseDone || restWasLastSet) {
@@ -187,7 +244,21 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
     hapticTap();
     restRemaining = Math.max(0, restRemaining + delta);
     restTotal = Math.max(restRemaining, restTotal + delta);
+    restTargetEndTime = Date.now() + (restRemaining * 1000);
     nextExpectedRestTick = Date.now() + 1000;
+
+    if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+      try {
+        const curEx = exercises[currentExIdx];
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'REST_TIMER_START',
+          seconds: restRemaining,
+          title: '⏰ ¡Descanso Terminado!',
+          body: `Descanso finalizado. ¡Siguiente serie de ${curEx?.name || 'Gimnasio'}!`
+        }));
+      } catch (e) {}
+    }
+
     updateRestUI();
   }
 
@@ -269,6 +340,11 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
   function finishGymWorkout() {
     clearInterval(workoutTimerInterval);
     if (restTimeoutId) clearTimeout(restTimeoutId);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('nativeRestCompleted', handleNativeRestCompleted);
+    if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+      try { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'REST_TIMER_CANCEL' })); } catch (e) {}
+    }
     releaseWakeLock();
 
     // Calculate totals across all exercises and supersets
@@ -430,9 +506,11 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
                           <div id="ui-super-weight-${sIdx}" class="font-headline font-black text-2xl text-primary tabular-nums leading-tight">
                             ${vals.weight}<span class="text-xs font-sans text-primary-container ml-0.5">kg</span>
                           </div>
-                          <div class="flex justify-center gap-1 mt-1">
-                            <button data-action="super-weight" data-sub-idx="${sIdx}" data-delta="-2.5" class="btn-adjust w-7 h-7 rounded bg-surface-container border text-[10px] font-black active:scale-90">-</button>
-                            <button data-action="super-weight" data-sub-idx="${sIdx}" data-delta="2.5" class="btn-adjust w-7 h-7 rounded bg-surface-container border text-[10px] font-black text-primary-container active:scale-90">+</button>
+                          <div class="grid grid-cols-4 gap-0.5 mt-1">
+                            <button data-action="super-weight" data-sub-idx="${sIdx}" data-delta="-2.5" class="btn-adjust h-7 rounded bg-surface-container border border-outline-variant/60 text-[8px] font-black active:scale-90">-2.5</button>
+                            <button data-action="super-weight" data-sub-idx="${sIdx}" data-delta="-0.5" class="btn-adjust h-7 rounded bg-surface-container border border-outline-variant/60 text-[9px] font-black text-primary-container active:scale-90">-0.5</button>
+                            <button data-action="super-weight" data-sub-idx="${sIdx}" data-delta="0.5" class="btn-adjust h-7 rounded bg-surface-container border border-outline-variant/60 text-[9px] font-black text-primary-container active:scale-90">+0.5</button>
+                            <button data-action="super-weight" data-sub-idx="${sIdx}" data-delta="2.5" class="btn-adjust h-7 rounded bg-surface-container border border-outline-variant/60 text-[8px] font-black active:scale-90">+2.5</button>
                           </div>
                         </div>
 
@@ -479,8 +557,8 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
 
                   <div class="grid grid-cols-4 gap-1 shrink-0">
                     <button data-action="single-weight" data-delta="-2.5" class="btn-adjust h-9 rounded-lg bg-surface-container-high border border-outline-variant active:border-primary-container text-on-surface text-[10px] font-headline font-black flex items-center justify-center active:scale-95">-2.5</button>
-                    <button data-action="single-weight" data-delta="-1" class="btn-adjust h-9 rounded-lg bg-surface-container-high border border-outline-variant active:border-primary-container text-on-surface text-xs font-headline font-black flex items-center justify-center active:scale-95">-1</button>
-                    <button data-action="single-weight" data-delta="1" class="btn-adjust h-9 rounded-lg bg-surface-container-high border border-outline-variant active:border-primary-container text-on-surface text-xs font-headline font-black flex items-center justify-center active:scale-95">+1</button>
+                    <button data-action="single-weight" data-delta="-0.5" class="btn-adjust h-9 rounded-lg bg-surface-container-high border border-outline-variant active:border-primary-container text-primary-container text-xs font-headline font-black flex items-center justify-center active:scale-95">-0.5</button>
+                    <button data-action="single-weight" data-delta="0.5" class="btn-adjust h-9 rounded-lg bg-surface-container-high border border-outline-variant active:border-primary-container text-primary-container text-xs font-headline font-black flex items-center justify-center active:scale-95">+0.5</button>
                     <button data-action="single-weight" data-delta="2.5" class="btn-adjust h-9 rounded-lg bg-surface-container-high border border-outline-variant active:border-primary-container text-on-surface text-[10px] font-headline font-black flex items-center justify-center active:scale-95">+2.5</button>
                   </div>
                 </div>
@@ -673,7 +751,7 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
         const delta = parseFloat(btn.getAttribute('data-delta'));
 
         if (action === 'single-weight') {
-          currentSingleWeight = Math.max(0, Math.min(500, currentSingleWeight + delta));
+          currentSingleWeight = Math.max(0, Math.min(500, Math.round((currentSingleWeight + delta) * 10) / 10));
           const el = document.getElementById('ui-single-weight');
           if (el) el.innerHTML = `${currentSingleWeight}<span class="text-sm text-primary-container font-sans font-bold ml-1">kg</span>`;
         } else if (action === 'single-reps') {
@@ -683,7 +761,7 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
         } else if (action === 'super-weight') {
           const sIdx = parseInt(btn.getAttribute('data-sub-idx'));
           if (currentSupersetValues[sIdx]) {
-            currentSupersetValues[sIdx].weight = Math.max(0, Math.min(500, currentSupersetValues[sIdx].weight + delta));
+            currentSupersetValues[sIdx].weight = Math.max(0, Math.min(500, Math.round((currentSupersetValues[sIdx].weight + delta) * 10) / 10));
             const el = document.getElementById(`ui-super-weight-${sIdx}`);
             if (el) el.innerHTML = `${currentSupersetValues[sIdx].weight}<span class="text-xs font-sans text-primary-container ml-0.5">kg</span>`;
           }
@@ -722,6 +800,11 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
       if (confirm('¿Deseas salir del entrenamiento de gimnasio en curso?')) {
         clearInterval(workoutTimerInterval);
         if (restTimeoutId) clearTimeout(restTimeoutId);
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('nativeRestCompleted', handleNativeRestCompleted);
+        if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+          try { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'REST_TIMER_CANCEL' })); } catch (e) {}
+        }
         releaseWakeLock();
         navigate('routines-hub', { tab: 'gym' });
       }

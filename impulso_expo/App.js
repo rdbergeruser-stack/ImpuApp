@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { StyleSheet, View, StatusBar, Platform, LogBox, Text } from 'react-native';
+import { StyleSheet, View, StatusBar, Platform, LogBox, Text, AppState } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useKeepAwake } from 'expo-keep-awake';
@@ -15,8 +15,28 @@ export default function App() {
   // Mantener pantalla encendida durante el entrenamiento
   useKeepAwake();
   const webViewRef = useRef(null);
+  const restTimerTimeoutRef = useRef(null);
+  const restTargetTimeRef = useRef(null);
   const [injectedStorageScript, setInjectedStorageScript] = useState('');
   const [availableVoices, setAvailableVoices] = useState([]);
+
+  // Sincronización al volver de segundo plano
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active' && restTargetTimeRef.current) {
+        if (Date.now() >= restTargetTimeRef.current) {
+          // El tiempo venció mientras la app estaba minimizada
+          webViewRef.current?.injectJavaScript(`
+            try {
+              window.dispatchEvent(new CustomEvent('nativeRestCompleted'));
+            } catch(e) {}
+          `);
+          restTargetTimeRef.current = null;
+        }
+      }
+    });
+    return () => subscription.remove();
+  }, []);
 
   // Clasificadores de género vocal para Android Google TTS, Samsung e iOS
   const isMaleVoice = (v) => {
@@ -272,7 +292,41 @@ export default function App() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
 
-      // 4. CONSOLE ERRORS
+      // 4. NATIVE BACKGROUND REST TIMER & ALERT
+      else if (data.type === 'REST_TIMER_START') {
+        try {
+          if (restTimerTimeoutRef.current) {
+            clearTimeout(restTimerTimeoutRef.current);
+            restTimerTimeoutRef.current = null;
+          }
+          const secs = Math.max(1, Math.round(data.seconds));
+          restTargetTimeRef.current = Date.now() + (secs * 1000);
+
+          restTimerTimeoutRef.current = setTimeout(() => {
+            // El motor TTS del sistema Android habla a través del altavoz incluso si la app está minimizada
+            speakNative('¡Descanso terminado! Siguiente serie.');
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            
+            webViewRef.current?.injectJavaScript(`
+              try {
+                window.dispatchEvent(new CustomEvent('nativeRestCompleted'));
+              } catch(e) {}
+            `);
+            restTargetTimeRef.current = null;
+            restTimerTimeoutRef.current = null;
+          }, secs * 1000);
+        } catch (err) {}
+      } else if (data.type === 'REST_TIMER_CANCEL') {
+        try {
+          if (restTimerTimeoutRef.current) {
+            clearTimeout(restTimerTimeoutRef.current);
+            restTimerTimeoutRef.current = null;
+          }
+          restTargetTimeRef.current = null;
+        } catch (err) {}
+      }
+
+      // 5. CONSOLE ERRORS
       else if (data.type === 'LOG_ERROR') {
         console.warn('WebApp Error:', data.message);
       }

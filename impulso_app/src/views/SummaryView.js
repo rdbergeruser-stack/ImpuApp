@@ -38,7 +38,7 @@ export function renderSummary(container, navigate, params = {}) {
       </header>
 
       <!-- Main Content Scroll Area -->
-      <main class="flex-1 px-4 py-4 flex flex-col justify-between overflow-y-auto no-scrollbar max-w-md mx-auto w-full gap-4">
+      <main class="flex-1 px-4 pt-4 pb-10 flex flex-col justify-between overflow-y-auto no-scrollbar max-w-md mx-auto w-full gap-5">
         
         <!-- Celebratory Medal Emblem -->
         <section class="flex flex-col items-center text-center mt-2">

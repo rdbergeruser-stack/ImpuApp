@@ -29,6 +29,7 @@ export function renderTabataConfig(container, navigate, params = {}) {
   const presets = storage.getTabataPresets();
   const settings = storage.getSettings();
   const isNew = !!(params && params.isNew);
+  const returnTo = params && params.returnTo ? params.returnTo : 'home';
 
   let config;
   if (isNew) {
@@ -146,27 +147,27 @@ export function renderTabataConfig(container, navigate, params = {}) {
           </section>
 
           <!-- Session Summary Bento -->
-          <section class="bg-surface-container rounded-2xl p-4 border border-outline-variant relative overflow-hidden shadow-sm">
-            <div class="flex items-center justify-between">
+          <section class="bg-surface-container rounded-2xl px-4 pt-4 pb-6 border border-outline-variant relative overflow-hidden shadow-sm mb-6 shrink-0">
+            <div class="flex items-center justify-between pb-3.5 mb-3.5 border-b border-outline-variant/40">
               <div class="flex items-center gap-2">
                 <span class="w-2.5 h-2.5 rounded-full bg-primary-container animate-pulse"></span>
                 <span class="text-xs font-black tracking-widest text-on-surface-variant uppercase font-headline">RESUMEN DE SESIÓN</span>
               </div>
-              <span class="px-2 py-0.5 rounded bg-surface-bright border border-outline-variant text-[10px] font-bold text-primary-container uppercase font-headline">TABATA</span>
+              <span class="px-2.5 py-1 rounded-md bg-surface-bright border border-outline-variant text-[10px] font-bold text-primary-container uppercase font-headline">TABATA</span>
             </div>
 
-            <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-outline-variant/40 text-center">
+            <div class="grid grid-cols-3 gap-2 pt-1 pb-1 text-center">
               <div>
                 <span class="block text-[11px] text-on-surface-variant uppercase font-bold">Tiempo Total</span>
-                <span id="ui-tabata-total-time" class="block font-headline text-2xl font-black text-primary tabular-nums mt-0.5">${formatTime(totalSecs)}</span>
+                <span id="ui-tabata-total-time" class="block font-headline text-2xl font-black text-primary tabular-nums mt-1">${formatTime(totalSecs)}</span>
               </div>
               <div class="border-x border-outline-variant/30">
                 <span class="block text-[11px] text-on-surface-variant uppercase font-bold">Intervalos</span>
-                <span id="ui-tabata-intervals" class="block font-headline text-2xl font-black text-primary-container tabular-nums mt-0.5">${totalIntervals}</span>
+                <span id="ui-tabata-intervals" class="block font-headline text-2xl font-black text-primary-container tabular-nums mt-1">${totalIntervals}</span>
               </div>
               <div>
                 <span class="block text-[11px] text-on-surface-variant uppercase font-bold">Series</span>
-                <span id="ui-tabata-sets" class="block font-headline text-2xl font-black text-primary tabular-nums mt-0.5">${config.sets}</span>
+                <span id="ui-tabata-sets" class="block font-headline text-2xl font-black text-primary tabular-nums mt-1">${config.sets}</span>
               </div>
             </div>
           </section>
@@ -411,7 +412,11 @@ export function renderTabataConfig(container, navigate, params = {}) {
   function attachEvents() {
     document.getElementById('btn-back')?.addEventListener('click', () => {
       hapticTap();
-      navigate('routines-hub', { tab: 'tabata' });
+      if (returnTo === 'routines-hub') {
+        navigate('routines-hub', { tab: 'tabata' });
+      } else {
+        navigate('home');
+      }
     });
 
     document.getElementById('btn-save-top')?.addEventListener('click', () => {
@@ -564,7 +569,7 @@ export function renderTabataConfig(container, navigate, params = {}) {
     document.getElementById('btn-start-tabata')?.addEventListener('click', () => {
       hapticTap();
       audio.ensureContext();
-      navigate('tabata-live', { config });
+      navigate('tabata-live', { config, returnTo });
     });
   }
 

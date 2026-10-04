@@ -19,10 +19,14 @@ export function renderProfile(container, navigate) {
     const gymCount = history.filter(h => h.type === 'gym').length;
     const runnerCount = history.filter(h => h.type === 'runner').length;
 
-    // BMI Calculation
+    // BMI Calculation with realistic biometrics bounds
     const weight = settings.athleteWeight || 70;
-    const heightM = (settings.athleteHeight || 175) / 100;
-    const bmi = (weight / (heightM * heightM)).toFixed(1);
+    const height = settings.athleteHeight || 175;
+    let bmi = '--';
+    if (weight >= 30 && weight <= 300 && height >= 80 && height <= 250) {
+      const heightM = height / 100;
+      bmi = (weight / (heightM * heightM)).toFixed(1);
+    }
 
     return { totalSecs, totalVolume, tabataCount, gymCount, runnerCount, bmi };
   }
@@ -195,12 +199,12 @@ export function renderProfile(container, navigate) {
                 <div class="grid grid-cols-3 gap-2">
                   <div class="bg-surface-container-low p-2.5 rounded-xl border border-outline-variant/40">
                     <label class="text-[9px] uppercase tracking-wider text-on-surface-variant block mb-1 font-bold">PESO (KG)</label>
-                    <input id="input-weight" type="number" step="0.5" value="${settings.athleteWeight || 70}" class="w-full bg-transparent font-headline text-lg font-black text-primary focus:outline-none" />
+                    <input id="input-weight" type="number" step="0.5" min="30" max="250" value="${settings.athleteWeight || 70}" class="w-full bg-transparent font-headline text-lg font-black text-primary focus:outline-none" />
                   </div>
 
                   <div class="bg-surface-container-low p-2.5 rounded-xl border border-outline-variant/40">
                     <label class="text-[9px] uppercase tracking-wider text-on-surface-variant block mb-1 font-bold">ALTURA (CM)</label>
-                    <input id="input-height" type="number" value="${settings.athleteHeight || 175}" class="w-full bg-transparent font-headline text-lg font-black text-primary focus:outline-none" />
+                    <input id="input-height" type="number" min="80" max="250" value="${settings.athleteHeight || 175}" class="w-full bg-transparent font-headline text-lg font-black text-primary focus:outline-none" />
                   </div>
 
                   <div class="bg-surface-container-low p-2.5 rounded-xl border border-outline-variant/40">
@@ -212,7 +216,7 @@ export function renderProfile(container, navigate) {
                 <div class="grid grid-cols-2 gap-2">
                   <div class="bg-surface-container-low p-2.5 rounded-xl border border-outline-variant/40">
                     <label class="text-[9px] uppercase tracking-wider text-on-surface-variant block mb-1 font-bold">EDAD (AÑOS)</label>
-                    <input id="input-age" type="number" min="10" max="100" value="${settings.athleteAge || 25}" class="w-full bg-transparent font-headline text-base font-black text-primary focus:outline-none" />
+                    <input id="input-age" type="number" min="10" max="110" value="${settings.athleteAge || 25}" class="w-full bg-transparent font-headline text-base font-black text-primary focus:outline-none" />
                   </div>
 
                   <div class="bg-surface-container-low p-2.5 rounded-xl border border-outline-variant/40">
@@ -315,11 +319,16 @@ export function renderProfile(container, navigate) {
 
     // In-place updates for athlete name, weight, and height (zero scroll jump)
     const updateBmiInPlace = () => {
-      const weight = settings.athleteWeight || 70;
-      const heightM = (settings.athleteHeight || 175) / 100;
-      const bmi = heightM > 0 ? (weight / (heightM * heightM)).toFixed(1) : '22.8';
+      const weight = settings.athleteWeight;
+      const height = settings.athleteHeight;
       const bmiEl = document.getElementById('val-bmi');
-      if (bmiEl) bmiEl.textContent = bmi;
+      if (!bmiEl) return;
+      if (typeof weight === 'number' && weight >= 30 && weight <= 250 && typeof height === 'number' && height >= 80 && height <= 250) {
+        const heightM = height / 100;
+        bmiEl.textContent = (weight / (heightM * heightM)).toFixed(1);
+      } else {
+        bmiEl.textContent = '--';
+      }
     };
 
     document.getElementById('input-athlete-name')?.addEventListener('input', (e) => {
@@ -333,21 +342,61 @@ export function renderProfile(container, navigate) {
       if (inEl) inEl.textContent = initials;
     });
 
+    document.getElementById('input-weight')?.addEventListener('change', (e) => {
+      let val = parseFloat(e.target.value);
+      if (isNaN(val) || val < 30) val = 30;
+      if (val > 250) val = 250;
+      val = Math.round(val * 10) / 10;
+      e.target.value = val;
+      settings.athleteWeight = val;
+      storage.saveSettings(settings);
+      updateBmiInPlace();
+    });
+
     document.getElementById('input-weight')?.addEventListener('input', (e) => {
-      settings.athleteWeight = parseFloat(e.target.value) || 0;
+      const val = parseFloat(e.target.value);
+      if (!isNaN(val) && val >= 30 && val <= 250) {
+        settings.athleteWeight = Math.round(val * 10) / 10;
+        storage.saveSettings(settings);
+      }
+      updateBmiInPlace();
+    });
+
+    document.getElementById('input-height')?.addEventListener('change', (e) => {
+      let val = parseFloat(e.target.value);
+      if (isNaN(val) || val < 80) val = 80;
+      if (val > 250) val = 250;
+      val = Math.round(val);
+      e.target.value = val;
+      settings.athleteHeight = val;
       storage.saveSettings(settings);
       updateBmiInPlace();
     });
 
     document.getElementById('input-height')?.addEventListener('input', (e) => {
-      settings.athleteHeight = parseFloat(e.target.value) || 0;
-      storage.saveSettings(settings);
+      const val = parseFloat(e.target.value);
+      if (!isNaN(val) && val >= 80 && val <= 250) {
+        settings.athleteHeight = Math.round(val);
+        storage.saveSettings(settings);
+      }
       updateBmiInPlace();
     });
 
-    document.getElementById('input-age')?.addEventListener('input', (e) => {
-      settings.athleteAge = parseInt(e.target.value) || 25;
+    document.getElementById('input-age')?.addEventListener('change', (e) => {
+      let val = parseInt(e.target.value);
+      if (isNaN(val) || val < 10) val = 10;
+      if (val > 110) val = 110;
+      e.target.value = val;
+      settings.athleteAge = val;
       storage.saveSettings(settings);
+    });
+
+    document.getElementById('input-age')?.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      if (!isNaN(val) && val >= 10 && val <= 110) {
+        settings.athleteAge = val;
+        storage.saveSettings(settings);
+      }
     });
 
     document.getElementById('select-level')?.addEventListener('change', (e) => {
