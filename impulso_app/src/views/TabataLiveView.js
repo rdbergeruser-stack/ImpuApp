@@ -221,6 +221,35 @@ export function renderTabataLive(container, navigate, params = {}) {
     if (timerTimeoutId) clearTimeout(timerTimeoutId);
     releaseWakeLock();
     audio.playFanfare();
+
+    if (params.gymReturn) {
+      audio.speak('¡Bloque Tabata completado con éxito!');
+      const gymData = params.gymReturn;
+      const curEx = gymData.routine.exercises[gymData.currentExIdx];
+      if (!gymData.completedSets[curEx.id]) {
+        gymData.completedSets[curEx.id] = [];
+      }
+      gymData.completedSets[curEx.id].push({
+        setNumber: 1,
+        isTabata: true,
+        tabataTitle: config.title || 'Tabata HIIT',
+        durationSeconds: totalWorkoutDuration,
+        completedAt: new Date().toISOString()
+      });
+
+      navigate('gym-live', {
+        routine: gymData.routine,
+        resumeGym: {
+          currentExIdx: gymData.currentExIdx,
+          completedSets: gymData.completedSets,
+          workoutElapsedSeconds: gymData.workoutElapsedSeconds + totalWorkoutDuration,
+          workoutStartTime: gymData.workoutStartTime,
+          justFinishedTabata: true
+        }
+      });
+      return;
+    }
+
     audio.speak('¡Entrenamiento completado! Excelente trabajo.');
 
     const summaryData = {
@@ -294,8 +323,10 @@ export function renderTabataLive(container, navigate, params = {}) {
               ImpuApp
             </span>
             <div class="flex items-center gap-1.5 justify-center mt-0.5">
-              <span class="text-primary-dim text-[10px] tracking-widest font-black uppercase font-headline">${config.title || 'TABATA INTERVAL'}</span>
-              <span class="w-1.5 h-1.5 rounded-full bg-primary-container animate-ping"></span>
+              <span class="${params.gymReturn ? 'text-amber-400' : 'text-primary-dim'} text-[10px] tracking-widest font-black uppercase font-headline">
+                ${params.gymReturn ? `GIMNASIO: ${config.title || 'BLOQUE TABATA'}` : (config.title || 'TABATA INTERVAL')}
+              </span>
+              <span class="w-1.5 h-1.5 rounded-full ${params.gymReturn ? 'bg-amber-400' : 'bg-primary-container'} animate-ping"></span>
             </div>
           </div>
 
@@ -468,6 +499,17 @@ export function renderTabataLive(container, navigate, params = {}) {
 
     document.getElementById('btn-exit')?.addEventListener('click', () => {
       hapticTap();
+      if (params.gymReturn) {
+        if (confirm('¿Deseas volver a la rutina de gimnasio sin completar este Tabata?')) {
+          if (timerTimeoutId) clearTimeout(timerTimeoutId);
+          releaseWakeLock();
+          navigate('gym-live', {
+            routine: params.gymReturn.routine,
+            resumeGym: { ...params.gymReturn }
+          });
+        }
+        return;
+      }
       if (confirm('¿Deseas salir del entrenamiento actual?')) {
         if (timerTimeoutId) clearTimeout(timerTimeoutId);
         releaseWakeLock();

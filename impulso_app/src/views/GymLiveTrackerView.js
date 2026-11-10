@@ -9,8 +9,15 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
   const routine = params.routine || storage.getGymRoutines()[0];
   const exercises = routine.exercises;
 
-  // Normalizar ejercicios existentes para compatibilidad total con N ejercicios en súper series
+  // Normalizar ejercicios existentes para compatibilidad total con N ejercicios en súper series y bloques Tabata
   function normalizeExercise(ex) {
+    if (ex.isTabata) {
+      ex.targetSets = 1;
+      ex.defaultWeight = 0;
+      ex.targetReps = 'HIIT';
+      if (!ex.restSeconds) ex.restSeconds = 90;
+      return ex;
+    }
     if (ex.isSuperset) {
       if (!Array.isArray(ex.subExercises) || ex.subExercises.length === 0) {
         ex.subExercises = [
@@ -44,17 +51,33 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
     completedSets[e.id] = [];
   });
 
+  // Reanudar sesión si viene de completar un bloque Tabata
+  if (params.resumeGym) {
+    currentExIdx = typeof params.resumeGym.currentExIdx === 'number' ? params.resumeGym.currentExIdx : 0;
+    workoutElapsedSeconds = params.resumeGym.workoutElapsedSeconds || 0;
+    workoutStartTime = params.resumeGym.workoutStartTime || (Date.now() - (workoutElapsedSeconds * 1000));
+    if (params.resumeGym.completedSets) {
+      Object.keys(params.resumeGym.completedSets).forEach(k => {
+        completedSets[k] = params.resumeGym.completedSets[k];
+      });
+    }
+  }
+
   // Interactive state for current active block
   // Single exercise values
-  let currentSingleWeight = exercises[0].defaultWeight || 50;
-  let currentSingleReps = parseInt(exercises[0].targetReps) || 10;
+  let currentSingleWeight = exercises[currentExIdx]?.defaultWeight || 50;
+  let currentSingleReps = parseInt(exercises[currentExIdx]?.targetReps) || 10;
 
   // N-exercise Superset values: array of { weight, reps }
   let currentSupersetValues = [];
 
   function updateActiveValuesForCurrentEx() {
     const curEx = exercises[currentExIdx];
-    if (curEx.isSuperset) {
+    if (!curEx) return;
+    if (curEx.isTabata) {
+      currentSingleWeight = 0;
+      currentSingleReps = 0;
+    } else if (curEx.isSuperset) {
       currentSupersetValues = curEx.subExercises.map(sub => ({
         weight: typeof sub.defaultWeight === 'number' ? sub.defaultWeight : 20,
         reps: parseInt(sub.targetReps) || 10
@@ -108,10 +131,19 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
   };
   window.addEventListener('nativeRestCompleted', handleNativeRestCompleted);
 
-  // Voice announcement on initial load
-  setTimeout(() => {
-    announceCurrentExercise();
-  }, 400);
+  // Voice announcement or post-Tabata rest on load
+  if (params.resumeGym?.justFinishedTabata) {
+    const curEx = exercises[currentExIdx];
+    setTimeout(() => {
+      const isLastExerciseOfRoutine = currentExIdx === exercises.length - 1;
+      audio.speak(`¡Bloque Tabata completado! Descanso de recuperación.`);
+      startRestTimer(curEx.restSeconds || 90, isLastExerciseOfRoutine);
+    }, 350);
+  } else {
+    setTimeout(() => {
+      announceCurrentExercise();
+    }, 400);
+  }
 
   // Start workout elapsed chronometer
   workoutTimerInterval = setInterval(() => {
@@ -122,14 +154,43 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
 
   function announceCurrentExercise() {
     const curEx = exercises[currentExIdx];
+    if (!curEx) return;
     const setNum = (completedSets[curEx.id]?.length || 0) + 1;
-    if (curEx.isSuperset) {
+    if (curEx.isTabata) {
+      audio.speak(`Bloque Tabata: ${curEx.name}. Pulsa iniciar cuando estés listo.`);
+    } else if (curEx.isSuperset) {
       const count = curEx.subExercises.length;
       const names = curEx.subExercises.map(s => s.name).join(', seguido de ');
       audio.speak(`Súper Serie de ${count} ejercicios: ${names}. Serie ${setNum}`);
     } else {
       audio.speak(`Ejercicio: ${curEx.name}. Serie ${setNum}`);
     }
+  }
+
+  function startTabataLive() {
+    hapticTap();
+    const curEx = exercises[currentExIdx];
+    let preset = storage.getTabataPresetById(curEx.tabataPresetId);
+    if (!preset) {
+      preset = storage.getTabataPresets()[0];
+    }
+
+    clearInterval(workoutTimerInterval);
+    if (restTimeoutId) clearTimeout(restTimeoutId);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('nativeRestCompleted', handleNativeRestCompleted);
+    releaseWakeLock();
+
+    navigate('tabata-live', {
+      config: preset,
+      gymReturn: {
+        routine,
+        currentExIdx,
+        completedSets,
+        workoutElapsedSeconds,
+        workoutStartTime
+      }
+    });
   }
 
   function scheduleNextRestTick() {
@@ -347,12 +408,17 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
     }
     releaseWakeLock();
 
-    // Calculate totals across all exercises and supersets
+    // Calculate totals across all exercises, supersets and tabatas
     let totalVolume = 0;
     let totalSetsLogged = 0;
+    let tabatasCompleted = 0;
 
     Object.values(completedSets).forEach(sets => {
       sets.forEach(s => {
+        if (s.isTabata) {
+          tabatasCompleted++;
+          return;
+        }
         if (s.isSuperset && Array.isArray(s.subExercises)) {
           s.subExercises.forEach(sub => {
             totalVolume += ((sub.weight || 0) * (sub.reps || 0));
@@ -367,16 +433,17 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
     });
 
     audio.playFanfare();
-    audio.speak('¡Entrenamiento de gimnasio concluido! Excelente congestión muscular.');
+    audio.speak('¡Entrenamiento de gimnasio concluido! Excelente trabajo.');
 
+    const tabataText = tabatasCompleted > 0 ? ` + ${tabatasCompleted} bloque(s) Tabata` : '';
     const summaryData = {
       type: 'gym',
       routineName: routine.title,
       durationSeconds: workoutElapsedSeconds,
-      caloriesEst: Math.round((workoutElapsedSeconds / 60) * 8.5),
+      caloriesEst: Math.round((workoutElapsedSeconds / 60) * 8.5) + (tabatasCompleted * 45),
       totalVolumeKg: totalVolume,
       totalSets: totalSetsLogged,
-      summary: `Completadas ${totalSetsLogged} series en ${exercises.length} bloques con un volumen de ${formatKg(totalVolume)}.`
+      summary: `Completadas ${totalSetsLogged} series de fuerza${tabataText} en ${exercises.length} bloques con un volumen de ${formatKg(totalVolume)}.`
     };
 
     navigate('summary', { workout: summaryData });
@@ -395,6 +462,7 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
 
   function render() {
     const curEx = exercises[currentExIdx];
+    const currentTabata = curEx.isTabata ? (storage.getTabataPresetById(curEx.tabataPresetId) || storage.getTabataPresets()[0]) : null;
     const setsLogged = completedSets[curEx.id] || [];
     const currentSetNum = setsLogged.length + 1;
     const isExerciseDone = setsLogged.length >= curEx.targetSets;
@@ -411,7 +479,7 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
             <div>
               <span class="font-montserrat text-sm font-black text-white uppercase block leading-tight truncate max-w-[180px]">ImpuApp</span>
               <span class="text-[10px] text-primary-container font-black uppercase tracking-widest font-headline">
-                ${routine.title} • BLOQUE ${currentExIdx + 1} DE ${exercises.length} ${curEx.isSuperset ? '• SÚPER SERIE' : ''}
+                ${routine.title} • BLOQUE ${currentExIdx + 1} DE ${exercises.length} ${curEx.isTabata ? '• INTERVALO TABATA' : curEx.isSuperset ? '• SÚPER SERIE' : ''}
               </span>
             </div>
           </div>
@@ -433,7 +501,12 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
           <section class="bg-surface-container rounded-2xl p-4 border border-outline-variant flex items-center justify-between shadow-sm shrink-0 w-full">
             <div>
               <div class="flex items-center gap-1.5 mb-0.5">
-                ${curEx.isSuperset ? `
+                ${curEx.isTabata ? `
+                  <span class="px-2 py-0.5 rounded bg-amber-500 text-black text-[9px] font-headline font-black uppercase flex items-center gap-0.5 shadow-sm">
+                    <span class="material-symbols-outlined text-xs">timer</span>
+                    <span>INTERVALO TABATA / HIIT</span>
+                  </span>
+                ` : curEx.isSuperset ? `
                   <span class="px-2 py-0.5 rounded bg-primary-container text-on-primary-container text-[9px] font-headline font-black uppercase flex items-center gap-0.5 shadow-sm">
                     <span class="material-symbols-outlined text-xs">bolt</span>
                     <span>SÚPER SERIE (${curEx.subExercises.length} EJERCICIOS)</span>
@@ -468,23 +541,68 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
           </section>
 
           <!-- Active Set Interactive Card: Ventana fija con shrink-0 que NUNCA se achica -->
-          <section class="bg-surface-container rounded-2xl border-2 ${curEx.isSuperset ? 'border-primary-container' : 'border-primary-container/80'} p-4 relative overflow-hidden neon-border-glow shadow-xl shrink-0 w-full">
+          <section class="bg-surface-container rounded-2xl border-2 ${curEx.isTabata ? 'border-amber-400' : curEx.isSuperset ? 'border-primary-container' : 'border-primary-container/80'} p-4 relative overflow-hidden neon-border-glow shadow-xl shrink-0 w-full">
             <!-- Set Progress Indicator Badge -->
             <div class="flex items-center justify-between pb-3 border-b border-outline-variant/40 shrink-0">
               <div class="flex items-center gap-2">
-                <span class="px-2.5 py-1 rounded bg-primary-container text-on-primary font-headline font-black text-xs uppercase tracking-wide">
-                  ${curEx.isSuperset ? 'Súper Serie' : 'Serie'} ${currentSetNum} / ${curEx.targetSets}
+                <span class="px-2.5 py-1 rounded ${curEx.isTabata ? 'bg-amber-500 text-black' : 'bg-primary-container text-on-primary'} font-headline font-black text-xs uppercase tracking-wide">
+                  ${curEx.isTabata ? 'INTERVALO TABATA' : curEx.isSuperset ? 'Súper Serie' : 'Serie'} ${curEx.isTabata ? '' : `${currentSetNum} / ${curEx.targetSets}`}
                 </span>
-                <span class="text-xs font-bold uppercase tracking-wider text-primary-dim">
-                  ${isExerciseDone ? 'Objetivo alcanzado' : 'En curso'}
+                <span class="text-xs font-bold uppercase tracking-wider ${curEx.isTabata ? 'text-amber-400' : 'text-primary-dim'}">
+                  ${isExerciseDone ? 'Objetivo alcanzado ✓' : 'En curso'}
                 </span>
               </div>
               <span class="text-xs text-on-surface-variant font-bold">
-                ${curEx.isSuperset ? `${curEx.subExercises.length} ejercicios combinados` : `Meta: ${curEx.targetReps} reps`}
+                ${curEx.isTabata ? `${currentTabata ? `${currentTabata.cycles} ciclos • ${currentTabata.work}s / ${currentTabata.rest}s` : 'HIIT'}` : curEx.isSuperset ? `${curEx.subExercises.length} ejercicios combinados` : `Meta: ${curEx.targetReps} reps`}
               </span>
             </div>
 
-            ${curEx.isSuperset ? `
+            ${curEx.isTabata ? `
+              <!-- TABATA INTERACTIVE LAUNCHER CARD -->
+              <div class="flex flex-col gap-3 mt-3 shrink-0">
+                <div class="p-4 bg-surface-container-high/70 rounded-2xl border border-amber-400/50 flex flex-col gap-3">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <h4 class="font-headline text-lg font-black text-amber-300 uppercase leading-tight">
+                        ${currentTabata?.title || curEx.name}
+                      </h4>
+                      <span class="text-xs text-on-surface-variant font-bold">
+                        ${currentTabata?.workName || 'Intervalo de alta intensidad cardiovascular'}
+                      </span>
+                    </div>
+                    <span class="px-2.5 py-1 rounded-full ${isExerciseDone ? 'bg-primary-container text-on-primary' : 'bg-surface-bright text-amber-300 border border-amber-400/50'} text-[10px] font-headline font-black uppercase">
+                      ${isExerciseDone ? '✓ REALIZADO' : 'PENDIENTE'}
+                    </span>
+                  </div>
+
+                  <!-- Bento specs -->
+                  <div class="grid grid-cols-3 gap-2 text-center">
+                    <div class="bg-surface-container p-2 rounded-xl border border-outline-variant/40">
+                      <span class="text-[9px] text-on-surface-variant uppercase font-bold block">Trabajo</span>
+                      <span class="font-headline text-lg font-black text-amber-300 mt-0.5 block">${currentTabata?.work || 20}s</span>
+                    </div>
+                    <div class="bg-surface-container p-2 rounded-xl border border-outline-variant/40">
+                      <span class="text-[9px] text-on-surface-variant uppercase font-bold block">Descanso</span>
+                      <span class="font-headline text-lg font-black text-secondary mt-0.5 block">${currentTabata?.rest || 10}s</span>
+                    </div>
+                    <div class="bg-surface-container p-2 rounded-xl border border-outline-variant/40">
+                      <span class="text-[9px] text-on-surface-variant uppercase font-bold block">Ciclos</span>
+                      <span class="font-headline text-lg font-black text-white mt-0.5 block">${currentTabata?.cycles || 8}</span>
+                    </div>
+                  </div>
+
+                  <!-- Button Launch Tabata -->
+                  <button id="btn-trigger-tabata-live" class="w-full h-13 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-headline text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg glow-tertiary">
+                    <span class="material-symbols-outlined text-2xl" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+                    <span>${isExerciseDone ? 'REPETIR TABATA EN PANTALLA COMPLETA' : 'INICIAR TABATA EN PANTALLA COMPLETA'}</span>
+                  </button>
+
+                  <button id="btn-manual-tabata-done" class="text-[11px] text-amber-400/80 hover:text-amber-300 font-bold text-center py-0.5 active:scale-95">
+                    ${isExerciseDone ? 'Registrar otra vez manualmente' : 'O marcar como realizado manualmente'}
+                  </button>
+                </div>
+              </div>
+            ` : curEx.isSuperset ? `
               <!-- N-EXERCISE SUPERSET INTERACTIVE CONTROLS -->
               <div class="flex flex-col gap-2.5 mt-3 shrink-0">
                 ${curEx.subExercises.map((sub, sIdx) => {
@@ -600,11 +718,11 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
                   <div class="p-2.5 rounded-xl bg-surface-container-low border border-outline-variant/40 text-xs flex flex-col gap-1">
                     <div class="flex items-center justify-between pb-1 border-b border-outline-variant/20">
                       <div class="flex items-center gap-1.5">
-                        <span class="w-5 h-5 rounded-md bg-surface-bright text-primary-container font-headline font-black text-[10px] flex items-center justify-center">
+                        <span class="w-5 h-5 rounded-md bg-surface-bright ${s.isTabata ? 'text-amber-400' : 'text-primary-container'} font-headline font-black text-[10px] flex items-center justify-center">
                           ${s.setNumber}
                         </span>
-                        <span class="font-headline font-black text-[10px] uppercase text-primary-container">
-                          ${s.isSuperset ? `SÚPER SERIE (${s.subExercises ? s.subExercises.length : 2} EJERCICIOS)` : 'SERIE INDIVIDUAL'}
+                        <span class="font-headline font-black text-[10px] uppercase ${s.isTabata ? 'text-amber-400' : 'text-primary-container'}">
+                          ${s.isTabata ? 'INTERVALO TABATA' : s.isSuperset ? `SÚPER SERIE (${s.subExercises ? s.subExercises.length : 2} EJERCICIOS)` : 'SERIE INDIVIDUAL'}
                         </span>
                       </div>
                       <div class="flex items-center gap-1 text-primary-container font-bold text-[10px]">
@@ -613,7 +731,12 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
                       </div>
                     </div>
 
-                    ${s.isSuperset && Array.isArray(s.subExercises) ? `
+                    ${s.isTabata ? `
+                      <div class="flex items-center justify-between text-on-surface pt-0.5">
+                        <span class="font-medium text-xs text-amber-300">${s.tabataTitle || curEx.name}</span>
+                        <span class="font-headline font-black text-xs text-amber-400 tabular-nums">${formatTime(s.durationSeconds || 240)} alta intensidad</span>
+                      </div>
+                    ` : s.isSuperset && Array.isArray(s.subExercises) ? `
                       <div class="flex flex-col gap-1 pt-0.5">
                         ${s.subExercises.map((sub, i) => `
                           <div class="flex items-center justify-between text-on-surface pl-2 border-l-2 border-primary-container/50">
@@ -668,16 +791,23 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
 
         <!-- Fixed Bottom Action Bar: Button is ALWAYS pinned and NEVER gets hidden -->
         <footer class="w-full shrink-0 bg-surface/95 backdrop-blur border-t border-outline-variant px-4 py-3 safe-area-bottom max-w-md mx-auto z-40">
-          <button id="btn-log-set" class="w-full h-14 rounded-2xl bg-primary-container text-on-primary font-headline text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 glow-work active:scale-[0.98] transition-transform shadow-xl">
-            <span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">
-              ${isExerciseDone ? 'arrow_forward' : 'check_circle'}
-            </span>
-            <span>
-              ${isExerciseDone 
-                ? (currentExIdx < exercises.length - 1 ? `PASAR A: ${exercises[currentExIdx + 1].name}` : 'FINALIZAR ENTRENAMIENTO')
-                : (curEx.isSuperset ? `REGISTRAR SÚPER SERIE ${currentSetNum} / ${curEx.targetSets}` : `REGISTRAR SERIE ${currentSetNum} / ${curEx.targetSets}`)}
-            </span>
-          </button>
+          ${curEx.isTabata && !isExerciseDone ? `
+            <button id="btn-footer-start-tabata" class="w-full h-14 rounded-2xl bg-amber-500 text-black font-headline text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 glow-tertiary active:scale-[0.98] transition-transform shadow-xl">
+              <span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+              <span>INICIAR TABATA EN PANTALLA COMPLETA</span>
+            </button>
+          ` : `
+            <button id="btn-log-set" class="w-full h-14 rounded-2xl bg-primary-container text-on-primary font-headline text-sm font-black uppercase tracking-wider flex items-center justify-center gap-2 glow-work active:scale-[0.98] transition-transform shadow-xl">
+              <span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">
+                ${isExerciseDone ? 'arrow_forward' : 'check_circle'}
+              </span>
+              <span>
+                ${isExerciseDone 
+                  ? (currentExIdx < exercises.length - 1 ? `PASAR A: ${exercises[currentExIdx + 1].name}` : 'FINALIZAR ENTRENAMIENTO')
+                  : (curEx.isSuperset ? `REGISTRAR SÚPER SERIE ${currentSetNum} / ${curEx.targetSets}` : `REGISTRAR SERIE ${currentSetNum} / ${curEx.targetSets}`)}
+              </span>
+            </button>
+          `}
         </footer>
 
         <!-- Automated Rest Stopwatch Modal / Overlay -->
@@ -774,6 +904,29 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
           }
         }
       });
+    });
+
+    // Tabata Live triggers
+    document.getElementById('btn-trigger-tabata-live')?.addEventListener('click', startTabataLive);
+    document.getElementById('btn-footer-start-tabata')?.addEventListener('click', startTabataLive);
+
+    document.getElementById('btn-manual-tabata-done')?.addEventListener('click', () => {
+      hapticTap();
+      const curEx = exercises[currentExIdx];
+      const preset = storage.getTabataPresetById(curEx.tabataPresetId) || storage.getTabataPresets()[0];
+      const duration = (preset?.cycles || 8) * ((preset?.work || 20) + (preset?.rest || 10));
+
+      completedSets[curEx.id].push({
+        setNumber: (completedSets[curEx.id]?.length || 0) + 1,
+        isTabata: true,
+        tabataTitle: preset?.title || curEx.name,
+        durationSeconds: duration,
+        completedAt: new Date().toISOString()
+      });
+      audio.playSetLogged();
+      audio.speak('Bloque Tabata registrado. Descanso de recuperación.');
+      const isLastExerciseOfRoutine = currentExIdx === exercises.length - 1;
+      startRestTimer(curEx.restSeconds || 90, isLastExerciseOfRoutine);
     });
 
     document.getElementById('btn-log-set')?.addEventListener('click', () => {

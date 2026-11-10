@@ -25,8 +25,20 @@ export function renderGymEditor(container, navigate, params = {}) {
     ]
   };
 
-  // Normalizar ejercicios existentes para compatibilidad total con N ejercicios por súper serie
+  // Normalizar ejercicios existentes para compatibilidad total con N ejercicios por súper serie y bloques Tabata
   function normalizeExercise(ex) {
+    if (ex.isTabata) {
+      ex.targetSets = 1;
+      ex.defaultWeight = 0;
+      ex.targetReps = 'HIIT';
+      if (!ex.tabataPresetId) {
+        const presets = storage.getTabataPresets();
+        ex.tabataPresetId = presets[0]?.id || 'tabata-classic';
+        ex.name = presets[0]?.title || 'Tabata HIIT';
+      }
+      if (!ex.restSeconds) ex.restSeconds = 90;
+      return ex;
+    }
     if (ex.isSuperset) {
       if (!Array.isArray(ex.subExercises) || ex.subExercises.length === 0) {
         ex.subExercises = [
@@ -68,6 +80,14 @@ export function renderGymEditor(container, navigate, params = {}) {
           routine.exercises[idx][field] = parseInt(input.value) || (field === 'targetSets' ? 3 : 60);
         } else if (field === 'defaultWeight') {
           routine.exercises[idx][field] = parseFloat(input.value) || 0;
+        } else if (field === 'tabataPresetId') {
+          routine.exercises[idx].tabataPresetId = input.value;
+          const presets = storage.getTabataPresets();
+          const p = presets.find(item => item.id === input.value);
+          if (p) {
+            routine.exercises[idx].name = p.title;
+            routine.exercises[idx].muscle = 'Tabata: ' + (p.workName || 'HIIT');
+          }
         } else {
           routine.exercises[idx][field] = input.value.trim();
         }
@@ -97,7 +117,8 @@ export function renderGymEditor(container, navigate, params = {}) {
 
   function render() {
     routine.exercises.forEach(normalizeExercise);
-    const totalSets = routine.exercises.reduce((acc, e) => acc + (parseInt(e.targetSets) || 3), 0);
+    const tabataPresets = storage.getTabataPresets();
+    const totalSets = routine.exercises.reduce((acc, e) => acc + (parseInt(e.targetSets) || (e.isTabata ? 1 : 3)), 0);
     const avgRest = routine.exercises.length > 0 
       ? Math.round(routine.exercises.reduce((acc, e) => acc + (parseInt(e.restSeconds) || 60), 0) / routine.exercises.length)
       : 60;
@@ -179,29 +200,52 @@ export function renderGymEditor(container, navigate, params = {}) {
               </h2>
             </div>
 
-            ${routine.exercises.map((ex, idx) => `
-              <article class="bg-surface-container rounded-2xl border ${ex.isSuperset ? 'border-primary-container bg-surface-container-high/40' : 'border-outline-variant'} p-3.5 flex flex-col gap-3 relative shadow-sm shrink-0 w-full">
+            ${routine.exercises.map((ex, idx) => {
+              const currentTabata = ex.isTabata ? (tabataPresets.find(p => p.id === ex.tabataPresetId) || tabataPresets[0]) : null;
+              const tabataDurationMin = currentTabata 
+                ? Math.round(((currentTabata.prep || 0) + ((currentTabata.work || 20) + (currentTabata.rest || 10)) * (currentTabata.cycles || 8) * (currentTabata.sets || 1) + (currentTabata.cooldown || 0)) / 60)
+                : 4;
+
+              return `
+              <article class="bg-surface-container rounded-2xl border ${
+                ex.isTabata 
+                  ? 'border-amber-400/70 bg-surface-container-high/30' 
+                  : ex.isSuperset 
+                    ? 'border-primary-container bg-surface-container-high/40' 
+                    : 'border-outline-variant'
+              } p-3.5 flex flex-col gap-3 relative shadow-sm shrink-0 w-full">
                 <!-- Card Header -->
                 <div class="flex items-center justify-between pb-2 border-b border-outline-variant/30">
                   <div class="flex items-center gap-2">
-                    <span class="w-6 h-6 rounded-full bg-surface-bright border border-outline-variant text-primary-container text-xs font-headline font-black flex items-center justify-center">
+                    <span class="w-6 h-6 rounded-full bg-surface-bright border ${ex.isTabata ? 'border-amber-400 text-amber-400' : 'border-outline-variant text-primary-container'} text-xs font-headline font-black flex items-center justify-center">
                       ${idx + 1}
                     </span>
-                    <span class="text-xs text-on-surface-variant font-bold uppercase">
-                      ${ex.isSuperset ? `⚡ SÚPER SERIE (${ex.subExercises.length} EJERCICIOS)` : (ex.muscle || 'EJERCICIO INDIVIDUAL')}
+                    <span class="text-xs ${ex.isTabata ? 'text-amber-400' : 'text-on-surface-variant'} font-bold uppercase">
+                      ${ex.isTabata 
+                        ? '⚡ INTERVALO TABATA / HIIT' 
+                        : ex.isSuperset 
+                          ? `⚡ SÚPER SERIE (${ex.subExercises.length} EJERCICIOS)` 
+                          : (ex.muscle || 'EJERCICIO INDIVIDUAL')}
                     </span>
                   </div>
 
-                  <!-- Toggle Súper Serie -->
+                  <!-- Header Controls -->
                   <div class="flex items-center gap-2">
-                    <button data-toggle-superset="${idx}" class="px-2.5 py-1 rounded-lg border text-[11px] font-headline font-black uppercase flex items-center gap-1 active:scale-95 transition-all ${
-                      ex.isSuperset 
-                        ? 'bg-primary-container text-on-primary-container border-primary-container shadow-sm' 
-                        : 'bg-surface-container-high text-on-surface-variant border-outline-variant hover:text-on-surface'
-                    }">
-                      <span class="material-symbols-outlined text-sm">sync_alt</span>
-                      <span>${ex.isSuperset ? 'SÚPER SERIE ✓' : '+ SÚPER SERIE'}</span>
-                    </button>
+                    ${!ex.isTabata ? `
+                      <button data-toggle-superset="${idx}" class="px-2.5 py-1 rounded-lg border text-[11px] font-headline font-black uppercase flex items-center gap-1 active:scale-95 transition-all ${
+                        ex.isSuperset 
+                          ? 'bg-primary-container text-on-primary-container border-primary-container shadow-sm' 
+                          : 'bg-surface-container-high text-on-surface-variant border-outline-variant hover:text-on-surface'
+                      }">
+                        <span class="material-symbols-outlined text-sm">sync_alt</span>
+                        <span>${ex.isSuperset ? 'SÚPER SERIE ✓' : '+ SÚPER SERIE'}</span>
+                      </button>
+                    ` : `
+                      <span class="px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px] font-headline font-black uppercase flex items-center gap-1">
+                        <span class="material-symbols-outlined text-xs">timer</span>
+                        <span>TABATA</span>
+                      </span>
+                    `}
 
                     <button data-delete-idx="${idx}" class="btn-delete-exercise text-on-surface-variant hover:text-error p-1" title="Eliminar bloque">
                       <span class="material-symbols-outlined text-lg">delete</span>
@@ -209,7 +253,44 @@ export function renderGymEditor(container, navigate, params = {}) {
                   </div>
                 </div>
 
-                ${ex.isSuperset ? `
+                ${ex.isTabata ? `
+                  <!-- BLOQUE TABATA INTEGRADO -->
+                  <div class="flex flex-col gap-2.5">
+                    <div>
+                      <label class="text-[10px] text-amber-300 uppercase font-black tracking-wider block mb-1">
+                        ELEGIR TABATA DE TUS GUARDADOS
+                      </label>
+                      <select data-field="tabataPresetId" data-idx="${idx}" class="tabata-preset-select ex-input w-full h-11 px-3 bg-surface-container-high rounded-xl border border-amber-400/50 text-amber-300 text-xs font-headline font-bold focus:outline-none focus:border-amber-400 shadow-sm">
+                        ${tabataPresets.map(tp => `
+                          <option value="${tp.id}" ${(ex.tabataPresetId === tp.id || (!ex.tabataPresetId && tp.id === 'tabata-classic')) ? 'selected' : ''}>
+                            ${tp.title} (${tp.work}s / ${tp.rest}s • ${tp.cycles} ciclos)
+                          </option>
+                        `).join('')}
+                      </select>
+                    </div>
+
+                    ${currentTabata ? `
+                      <div class="p-2.5 rounded-xl bg-surface-container-low border border-amber-400/30 flex items-center justify-between text-xs">
+                        <div class="flex items-center gap-2">
+                          <span class="material-symbols-outlined text-amber-400 text-base">timer</span>
+                          <span class="text-on-surface font-bold">
+                            ${currentTabata.cycles} ciclos • ${currentTabata.work}s trabajo / ${currentTabata.rest}s desc.
+                          </span>
+                        </div>
+                        <span class="text-amber-400 font-headline font-black text-[10px] uppercase">
+                          ~${tabataDurationMin} MIN
+                        </span>
+                      </div>
+                    ` : ''}
+
+                    <div>
+                      <label class="text-[9px] text-on-surface-variant uppercase font-bold block mb-0.5">
+                        Descanso de recuperación post Tabata (s)
+                      </label>
+                      <input data-field="restSeconds" data-idx="${idx}" type="number" min="15" max="300" step="15" value="${ex.restSeconds || 90}" class="ex-input w-full h-9 px-2 bg-surface-container-high rounded-xl border border-outline-variant text-amber-400 font-headline text-xs font-black text-center focus:outline-none focus:border-amber-400" />
+                    </div>
+                  </div>
+                ` : ex.isSuperset ? `
                   <!-- LISTA DINÁMICA DE N EJERCICIOS DE LA SÚPER SERIE -->
                   <div class="flex flex-col gap-2">
                     ${ex.subExercises.map((subEx, subIdx) => `
@@ -279,34 +360,42 @@ export function renderGymEditor(container, navigate, params = {}) {
                   </div>
                 `}
 
-                <!-- PARÁMETROS DEL BLOQUE: SERIES Y DESCANSO -->
-                <div class="grid grid-cols-2 gap-2 pt-2 border-t border-outline-variant/30">
-                  <div>
-                    <label class="text-[9px] text-on-surface-variant uppercase font-bold block mb-0.5">
-                      ${ex.isSuperset ? 'Series / Rondas Súper Serie' : 'Series Totales'}
-                    </label>
-                    <input data-field="targetSets" data-idx="${idx}" type="number" min="1" max="10" value="${ex.targetSets}" class="ex-input w-full h-9 px-2 bg-surface-container-high rounded-xl border border-outline-variant text-primary font-headline text-xs font-black text-center focus:outline-none focus:border-primary-container" />
+                ${!ex.isTabata ? `
+                  <!-- PARÁMETROS DEL BLOQUE: SERIES Y DESCANSO -->
+                  <div class="grid grid-cols-2 gap-2 pt-2 border-t border-outline-variant/30">
+                    <div>
+                      <label class="text-[9px] text-on-surface-variant uppercase font-bold block mb-0.5">
+                        ${ex.isSuperset ? 'Series / Rondas Súper Serie' : 'Series Totales'}
+                      </label>
+                      <input data-field="targetSets" data-idx="${idx}" type="number" min="1" max="10" value="${ex.targetSets}" class="ex-input w-full h-9 px-2 bg-surface-container-high rounded-xl border border-outline-variant text-primary font-headline text-xs font-black text-center focus:outline-none focus:border-primary-container" />
+                    </div>
+                    <div>
+                      <label class="text-[9px] text-on-surface-variant uppercase font-bold block mb-0.5">
+                        ${ex.isSuperset ? 'Descanso Post Súper Serie (s)' : 'Descanso entre Series (s)'}
+                      </label>
+                      <input data-field="restSeconds" data-idx="${idx}" type="number" min="15" max="300" step="15" value="${ex.restSeconds || 90}" class="ex-input w-full h-9 px-2 bg-surface-container-high rounded-xl border border-outline-variant text-primary font-headline text-xs font-black text-center focus:outline-none focus:border-primary-container" />
+                    </div>
                   </div>
-                  <div>
-                    <label class="text-[9px] text-on-surface-variant uppercase font-bold block mb-0.5">
-                      ${ex.isSuperset ? 'Descanso Post Súper Serie (s)' : 'Descanso entre Series (s)'}
-                    </label>
-                    <input data-field="restSeconds" data-idx="${idx}" type="number" min="15" max="300" step="15" value="${ex.restSeconds || 90}" class="ex-input w-full h-9 px-2 bg-surface-container-high rounded-xl border border-outline-variant text-primary font-headline text-xs font-black text-center focus:outline-none focus:border-primary-container" />
-                  </div>
-                </div>
+                ` : ''}
               </article>
-            `).join('')}
+              `;
+            }).join('')}
 
-            <!-- Add Buttons: Ejercicio Individual o Bloque Súper Serie -->
-            <div class="grid grid-cols-2 gap-2 pt-1">
-              <button id="btn-add-exercise" class="h-13 rounded-xl border-2 border-dashed border-outline-variant hover:border-primary-container text-on-surface font-headline text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 py-3 active:scale-95 transition-all">
-                <span class="material-symbols-outlined text-base">add</span>
+            <!-- Add Buttons: Ejercicio Individual, Bloque Súper Serie o Bloque Tabata -->
+            <div class="grid grid-cols-3 gap-2 pt-1">
+              <button id="btn-add-exercise" class="h-12 rounded-xl border-2 border-dashed border-outline-variant hover:border-primary-container text-on-surface font-headline text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 py-2 active:scale-95 transition-all">
+                <span class="material-symbols-outlined text-sm">add</span>
                 <span>+ EJERCICIO</span>
               </button>
 
-              <button id="btn-add-superset" class="h-13 rounded-xl bg-primary-container text-on-primary-container font-headline text-xs font-black uppercase tracking-wider flex items-center justify-center gap-1.5 py-3 active:scale-95 transition-all shadow-md">
-                <span class="material-symbols-outlined text-base">bolt</span>
+              <button id="btn-add-superset" class="h-12 rounded-xl bg-primary-container text-on-primary-container font-headline text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 py-2 active:scale-95 transition-all shadow-md">
+                <span class="material-symbols-outlined text-sm">bolt</span>
                 <span>+ SÚPER SERIE</span>
+              </button>
+
+              <button id="btn-add-tabata" class="h-12 rounded-xl bg-amber-500/20 border border-amber-400/50 text-amber-400 hover:bg-amber-500/30 font-headline text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 py-2 active:scale-95 transition-all shadow-sm">
+                <span class="material-symbols-outlined text-sm">timer</span>
+                <span>+ TABATA</span>
               </button>
             </div>
           </section>
@@ -515,6 +604,40 @@ export function renderGymEditor(container, navigate, params = {}) {
         const main = container.querySelector('main');
         if (main) main.scrollTo({ top: main.scrollHeight, behavior: 'smooth' });
       }, 50);
+    });
+
+    // Agregar nuevo bloque Tabata / HIIT desde presets
+    document.getElementById('btn-add-tabata')?.addEventListener('click', () => {
+      hapticTap();
+      syncInputs();
+      const presets = storage.getTabataPresets();
+      const firstPreset = presets[0] || { id: 'tabata-classic', title: 'Tabata Clásico 20/10' };
+      routine.exercises.push({
+        id: 'ex-tabata-' + Date.now(),
+        isTabata: true,
+        tabataPresetId: firstPreset.id,
+        name: firstPreset.title,
+        targetSets: 1,
+        defaultWeight: 0,
+        targetReps: 'HIIT',
+        restSeconds: 90,
+        muscle: 'HIIT / Cardio Finisher',
+        notes: ''
+      });
+      render();
+      setTimeout(() => {
+        const main = container.querySelector('main');
+        if (main) main.scrollTo({ top: main.scrollHeight, behavior: 'smooth' });
+      }, 50);
+    });
+
+    // Cambio de Tabata seleccionado en el dropdown
+    container.querySelectorAll('.tabata-preset-select').forEach(select => {
+      select.addEventListener('change', () => {
+        hapticTap();
+        syncInputs();
+        render();
+      });
     });
 
     // Guardar Rutina

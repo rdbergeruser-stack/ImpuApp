@@ -65,7 +65,9 @@ export function renderGymCatalog(container, navigate) {
             ${r.exercises.slice(0, 3).map(e => `
               <div class="flex justify-between items-center text-on-surface-variant">
                 <span class="font-medium truncate max-w-[220px]">• ${e.name}</span>
-                <span class="text-[11px] font-bold text-on-surface shrink-0">${e.targetSets}x${e.targetReps}</span>
+                <span class="text-[11px] font-bold ${e.isTabata ? 'text-amber-400' : 'text-on-surface'} shrink-0">
+                  ${e.isTabata ? '⏱️ Tabata' : `${e.targetSets}x${e.targetReps}`}
+                </span>
               </div>
             `).join('')}
             ${r.exercises.length > 3 ? `
