@@ -19,6 +19,13 @@ const KEYS = {
 
 class StorageService {
   constructor() {
+    this._cache = {
+      settings: null,
+      tabata: null,
+      runner: null,
+      gym: null,
+      history: null
+    };
     this.initDefaults();
   }
 
@@ -41,9 +48,15 @@ class StorageService {
   }
 
   getSettings() {
+    if (this._cache.settings) {
+      return this._cache.settings;
+    }
     try {
       const data = localStorage.getItem(KEYS.SETTINGS);
-      if (!data) return DEFAULT_SETTINGS;
+      if (!data) {
+        this._cache.settings = { ...DEFAULT_SETTINGS };
+        return this._cache.settings;
+      }
       const parsed = JSON.parse(data);
       // Clean up legacy hardcoded developer values
       if (parsed.athleteName === 'Rodrigo Berger') {
@@ -53,10 +66,13 @@ class StorageService {
         this.saveSettings({ ...DEFAULT_SETTINGS, ...parsed });
       }
       const settings = { ...DEFAULT_SETTINGS, ...parsed };
-      settings.athleteStreakDays = this.calculateStreak(this.getHistory());
+      // Calculate streak from raw history directly - avoids recursion
+      settings.athleteStreakDays = this.calculateStreak(this.getRawHistory());
+      this._cache.settings = settings;
       return settings;
     } catch (e) {
-      return DEFAULT_SETTINGS;
+      this._cache.settings = { ...DEFAULT_SETTINGS };
+      return this._cache.settings;
     }
   }
 
@@ -64,7 +80,8 @@ class StorageService {
     if (!Array.isArray(history) || history.length === 0) return 0;
 
     const uniqueDays = new Set();
-    history.forEach(item => {
+    for (let i = 0; i < history.length; i++) {
+      const item = history[i];
       if (item && item.date) {
         try {
           const d = new Date(item.date);
@@ -76,7 +93,7 @@ class StorageService {
           }
         } catch (e) {}
       }
-    });
+    }
 
     if (uniqueDays.size === 0) return 0;
 
@@ -113,6 +130,7 @@ class StorageService {
   }
 
   saveSettings(settings) {
+    this._cache.settings = { ...settings };
     localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
     this.applyTheme(settings);
     if (typeof window !== 'undefined' && window.ReactNativeWebView) {
@@ -161,12 +179,14 @@ class StorageService {
   }
 
   getTabataPresets() {
+    if (this._cache.tabata) return this._cache.tabata;
     try {
       const data = localStorage.getItem(KEYS.TABATA);
-      return data ? JSON.parse(data) : DEFAULT_TABATA_PRESETS;
+      this._cache.tabata = data ? JSON.parse(data) : DEFAULT_TABATA_PRESETS;
     } catch (e) {
-      return DEFAULT_TABATA_PRESETS;
+      this._cache.tabata = DEFAULT_TABATA_PRESETS;
     }
+    return this._cache.tabata;
   }
 
   getTabataPresetById(id) {
@@ -175,29 +195,32 @@ class StorageService {
   }
 
   saveTabataPreset(preset) {
-    const presets = this.getTabataPresets();
+    const presets = [...this.getTabataPresets()];
     const index = presets.findIndex(p => p.id === preset.id);
     if (index >= 0) {
       presets[index] = preset;
     } else {
       presets.unshift(preset);
     }
+    this._cache.tabata = presets;
     localStorage.setItem(KEYS.TABATA, JSON.stringify(presets));
   }
 
   deleteTabataPreset(id) {
-    let presets = this.getTabataPresets();
-    presets = presets.filter(p => p.id !== id);
+    const presets = this.getTabataPresets().filter(p => p.id !== id);
+    this._cache.tabata = presets;
     localStorage.setItem(KEYS.TABATA, JSON.stringify(presets));
   }
 
   getRunnerPresets() {
+    if (this._cache.runner) return this._cache.runner;
     try {
       const data = localStorage.getItem(KEYS.RUNNER);
-      return data ? JSON.parse(data) : DEFAULT_RUNNER_PRESETS;
+      this._cache.runner = data ? JSON.parse(data) : DEFAULT_RUNNER_PRESETS;
     } catch (e) {
-      return DEFAULT_RUNNER_PRESETS;
+      this._cache.runner = DEFAULT_RUNNER_PRESETS;
     }
+    return this._cache.runner;
   }
 
   getRunnerPresetById(id) {
@@ -206,29 +229,32 @@ class StorageService {
   }
 
   saveRunnerPreset(preset) {
-    const presets = this.getRunnerPresets();
+    const presets = [...this.getRunnerPresets()];
     const index = presets.findIndex(p => p.id === preset.id);
     if (index >= 0) {
       presets[index] = preset;
     } else {
       presets.unshift(preset);
     }
+    this._cache.runner = presets;
     localStorage.setItem(KEYS.RUNNER, JSON.stringify(presets));
   }
 
   deleteRunnerPreset(id) {
-    let presets = this.getRunnerPresets();
-    presets = presets.filter(p => p.id !== id);
+    const presets = this.getRunnerPresets().filter(p => p.id !== id);
+    this._cache.runner = presets;
     localStorage.setItem(KEYS.RUNNER, JSON.stringify(presets));
   }
 
   getGymRoutines() {
+    if (this._cache.gym) return this._cache.gym;
     try {
       const data = localStorage.getItem(KEYS.GYM);
-      return data ? JSON.parse(data) : DEFAULT_GYM_ROUTINES;
+      this._cache.gym = data ? JSON.parse(data) : DEFAULT_GYM_ROUTINES;
     } catch (e) {
-      return DEFAULT_GYM_ROUTINES;
+      this._cache.gym = DEFAULT_GYM_ROUTINES;
     }
+    return this._cache.gym;
   }
 
   getGymRoutineById(id) {
@@ -237,51 +263,65 @@ class StorageService {
   }
 
   saveGymRoutine(routine) {
-    const routines = this.getGymRoutines();
+    const routines = [...this.getGymRoutines()];
     const index = routines.findIndex(r => r.id === routine.id);
     if (index >= 0) {
       routines[index] = routine;
     } else {
       routines.unshift(routine);
     }
+    this._cache.gym = routines;
     localStorage.setItem(KEYS.GYM, JSON.stringify(routines));
   }
 
   deleteGymRoutine(id) {
-    let routines = this.getGymRoutines();
-    routines = routines.filter(r => r.id !== id);
+    const routines = this.getGymRoutines().filter(r => r.id !== id);
+    this._cache.gym = routines;
     localStorage.setItem(KEYS.GYM, JSON.stringify(routines));
   }
 
-  getHistory() {
+  getRawHistory() {
+    if (this._cache.history) return this._cache.history;
     try {
-      const settings = this.getSettings();
-      if (!settings.hasCompletedOnboarding) {
+      const data = localStorage.getItem(KEYS.HISTORY);
+      if (!data) {
+        this._cache.history = [];
         return [];
       }
-      const data = localStorage.getItem(KEYS.HISTORY);
-      if (!data) return [];
       const list = JSON.parse(data);
-      if (!Array.isArray(list)) return [];
-      // Clean up legacy mock items if any exist
+      if (!Array.isArray(list)) {
+        this._cache.history = [];
+        return [];
+      }
       const cleaned = list.filter(h => !['hist-1', 'hist-2', 'hist-3'].includes(h.id));
       if (cleaned.length !== list.length) {
         localStorage.setItem(KEYS.HISTORY, JSON.stringify(cleaned));
       }
+      this._cache.history = cleaned;
       return cleaned;
     } catch (e) {
+      this._cache.history = [];
       return [];
     }
   }
 
+  getHistory() {
+    const settings = this.getSettings();
+    if (!settings.hasCompletedOnboarding) {
+      return [];
+    }
+    return this.getRawHistory();
+  }
+
   addHistoryEntry(entry) {
-    const history = this.getHistory();
+    const history = [...this.getRawHistory()];
     const newEntry = {
       id: 'hist-' + Date.now(),
       date: new Date().toISOString(),
       ...entry
     };
     history.unshift(newEntry);
+    this._cache.history = history;
     localStorage.setItem(KEYS.HISTORY, JSON.stringify(history));
 
     const settings = this.getSettings();
@@ -302,6 +342,7 @@ class StorageService {
   }
 
   clearHistory() {
+    this._cache.history = [];
     localStorage.setItem(KEYS.HISTORY, JSON.stringify([]));
     const settings = this.getSettings();
     settings.athleteStreakDays = 0;
@@ -318,6 +359,13 @@ class StorageService {
   }
 
   resetAllData() {
+    this._cache = {
+      settings: null,
+      tabata: null,
+      runner: null,
+      gym: null,
+      history: null
+    };
     localStorage.clear();
     this.initDefaults();
     if (typeof window !== 'undefined' && window.ReactNativeWebView) {

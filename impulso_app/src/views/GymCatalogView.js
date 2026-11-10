@@ -18,6 +18,124 @@ export function renderGymCatalog(container, navigate) {
     });
   }
 
+  function renderCardsHtml(filtered) {
+    if (filtered.length === 0) {
+      return `
+        <div class="bg-surface-container rounded-2xl p-6 text-center border border-outline-variant">
+          <span class="material-symbols-outlined text-3xl text-on-surface-variant mb-2">fitness_center</span>
+          <p class="text-xs text-on-surface-variant font-medium">No se encontraron rutinas para esta búsqueda.</p>
+        </div>
+      `;
+    }
+    return filtered.map(r => {
+      const totalSets = r.exercises.reduce((acc, e) => acc + (e.targetSets || 3), 0);
+      return `
+        <article class="bg-surface-container rounded-2xl border border-outline-variant hover:border-primary-container/60 p-4 transition-all duration-200 flex flex-col gap-3 shadow-md group">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded-full bg-surface-bright border border-outline-variant text-primary-container text-[10px] font-headline font-black tracking-widest">
+                ${r.days || 'FLEXIBLE'}
+              </span>
+              <span class="px-2 py-0.5 rounded bg-surface-container-high border border-outline-variant text-on-surface-variant text-[10px] font-headline font-bold uppercase">
+                ${r.category || 'FUERZA'}
+              </span>
+            </div>
+
+            <div class="flex items-center gap-1">
+              <button data-action="edit" data-id="${r.id}" class="btn-routine-action p-1.5 rounded-lg text-on-surface-variant hover:text-primary-container active:scale-95" title="Editar rutina">
+                <span class="material-symbols-outlined text-lg">edit</span>
+              </button>
+              <button data-action="delete" data-id="${r.id}" class="btn-routine-action p-1.5 rounded-lg text-on-surface-variant hover:text-error active:scale-95" title="Eliminar">
+                <span class="material-symbols-outlined text-lg">delete</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="font-headline text-lg font-black text-primary uppercase tracking-tight">
+              ${r.title}
+            </h3>
+            <p class="text-xs text-on-surface-variant mt-0.5">
+              ${r.description || `${r.exercises.length} ejercicios planificados`}
+            </p>
+          </div>
+
+          <!-- Exercise Preview Pills -->
+          <div class="bg-surface-container-low rounded-xl p-2.5 border border-outline-variant/40 flex flex-col gap-1.5 text-xs">
+            ${r.exercises.slice(0, 3).map(e => `
+              <div class="flex justify-between items-center text-on-surface-variant">
+                <span class="font-medium truncate max-w-[220px]">• ${e.name}</span>
+                <span class="text-[11px] font-bold text-on-surface shrink-0">${e.targetSets}x${e.targetReps}</span>
+              </div>
+            `).join('')}
+            ${r.exercises.length > 3 ? `
+              <span class="text-[10px] text-outline font-bold mt-0.5">+ ${r.exercises.length - 3} ejercicios más</span>
+            ` : ''}
+          </div>
+
+          <!-- Metrics bar & Launch Button -->
+          <div class="flex items-center justify-between pt-1">
+            <div class="flex items-center gap-3 text-xs text-on-surface-variant">
+              <span class="font-bold text-on-surface">${r.exercises.length} <span class="font-normal text-on-surface-variant">ejercicios</span></span>
+              <span>•</span>
+              <span class="font-bold text-on-surface">${totalSets} <span class="font-normal text-on-surface-variant">series</span></span>
+            </div>
+
+            <button data-routine-id="${r.id}" class="btn-start-gym px-4 py-2.5 rounded-xl bg-primary-container text-on-primary font-headline text-xs font-black uppercase tracking-wider flex items-center gap-1.5 active:scale-95 transition-transform shadow-md">
+              <span class="material-symbols-outlined text-base" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
+              <span>INICIAR</span>
+            </button>
+          </div>
+        </article>
+      `;
+    }).join('');
+  }
+
+  function updateCards() {
+    const filtered = getFilteredRoutines();
+    const countEl = document.getElementById('gym-routines-count');
+    if (countEl) countEl.textContent = `${filtered.length} DISPONIBLES`;
+
+    const listEl = document.getElementById('gym-routines-container');
+    if (listEl) {
+      listEl.innerHTML = renderCardsHtml(filtered);
+      attachCardEvents(listEl);
+    }
+  }
+
+  function attachCardEvents(parent = container) {
+    parent.querySelectorAll('.btn-start-gym').forEach(btn => {
+      btn.addEventListener('click', () => {
+        hapticTap();
+        const id = btn.getAttribute('data-routine-id');
+        const routine = storage.getGymRoutineById(id);
+        if (routine) {
+          navigate('gym-live', { routine });
+        }
+      });
+    });
+
+    parent.querySelectorAll('.btn-routine-action').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        hapticTap();
+        const action = btn.getAttribute('data-action');
+        const id = btn.getAttribute('data-id');
+
+        if (action === 'edit') {
+          const routine = storage.getGymRoutineById(id);
+          if (routine) navigate('gym-editor', { routine });
+        } else if (action === 'delete') {
+          if (confirm('¿Eliminar esta rutina de gimnasio?')) {
+            storage.deleteGymRoutine(id);
+            routines = storage.getGymRoutines();
+            updateCards();
+          }
+        }
+      });
+    });
+  }
+
   function render() {
     const filtered = getFilteredRoutines();
 
@@ -71,80 +189,14 @@ export function renderGymCatalog(container, navigate) {
               <span class="material-symbols-outlined text-primary-container text-base">view_agenda</span>
               <h2 class="font-headline text-xs tracking-wider text-on-surface uppercase font-black">RUTINAS GUARDADAS</h2>
             </div>
-            <span class="text-[10px] font-headline text-on-surface-variant font-bold tracking-widest bg-surface-container-high px-2 py-0.5 rounded">
+            <span id="gym-routines-count" class="text-[10px] font-headline text-on-surface-variant font-bold tracking-widest bg-surface-container-high px-2 py-0.5 rounded">
               ${filtered.length} DISPONIBLES
             </span>
           </div>
 
           <!-- List of Routine Cards -->
-          <div class="flex flex-col gap-3.5">
-            ${filtered.length === 0 ? `
-              <div class="bg-surface-container rounded-2xl p-6 text-center border border-outline-variant">
-                <span class="material-symbols-outlined text-3xl text-on-surface-variant mb-2">fitness_center</span>
-                <p class="text-xs text-on-surface-variant font-medium">No se encontraron rutinas para esta búsqueda.</p>
-              </div>
-            ` : filtered.map(r => {
-              const totalSets = r.exercises.reduce((acc, e) => acc + (e.targetSets || 3), 0);
-              return `
-                <article class="bg-surface-container rounded-2xl border border-outline-variant hover:border-primary-container/60 p-4 transition-all duration-200 flex flex-col gap-3 shadow-md group">
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <span class="px-2.5 py-0.5 rounded-full bg-surface-bright border border-outline-variant text-primary-container text-[10px] font-headline font-black tracking-widest">
-                        ${r.days || 'FLEXIBLE'}
-                      </span>
-                      <span class="px-2 py-0.5 rounded bg-surface-container-high border border-outline-variant text-on-surface-variant text-[10px] font-headline font-bold uppercase">
-                        ${r.category || 'FUERZA'}
-                      </span>
-                    </div>
-
-                    <div class="flex items-center gap-1">
-                      <button data-action="edit" data-id="${r.id}" class="btn-routine-action p-1.5 rounded-lg text-on-surface-variant hover:text-primary-container active:scale-95" title="Editar rutina">
-                        <span class="material-symbols-outlined text-lg">edit</span>
-                      </button>
-                      <button data-action="delete" data-id="${r.id}" class="btn-routine-action p-1.5 rounded-lg text-on-surface-variant hover:text-error active:scale-95" title="Eliminar">
-                        <span class="material-symbols-outlined text-lg">delete</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 class="font-headline text-lg font-black text-primary uppercase tracking-tight">
-                      ${r.title}
-                    </h3>
-                    <p class="text-xs text-on-surface-variant mt-0.5">
-                      ${r.description || `${r.exercises.length} ejercicios planificados`}
-                    </p>
-                  </div>
-
-                  <!-- Exercise Preview Pills -->
-                  <div class="bg-surface-container-low rounded-xl p-2.5 border border-outline-variant/40 flex flex-col gap-1.5 text-xs">
-                    ${r.exercises.slice(0, 3).map(e => `
-                      <div class="flex justify-between items-center text-on-surface-variant">
-                        <span class="font-medium truncate max-w-[220px]">• ${e.name}</span>
-                        <span class="text-[11px] font-bold text-on-surface shrink-0">${e.targetSets}x${e.targetReps}</span>
-                      </div>
-                    `).join('')}
-                    ${r.exercises.length > 3 ? `
-                      <span class="text-[10px] text-outline font-bold mt-0.5">+ ${r.exercises.length - 3} ejercicios más</span>
-                    ` : ''}
-                  </div>
-
-                  <!-- Metrics bar & Launch Button -->
-                  <div class="flex items-center justify-between pt-1">
-                    <div class="flex items-center gap-3 text-xs text-on-surface-variant">
-                      <span class="font-bold text-on-surface">${r.exercises.length} <span class="font-normal text-on-surface-variant">ejercicios</span></span>
-                      <span>•</span>
-                      <span class="font-bold text-on-surface">${totalSets} <span class="font-normal text-on-surface-variant">series</span></span>
-                    </div>
-
-                    <button data-routine-id="${r.id}" class="btn-start-gym px-4 py-2.5 rounded-xl bg-primary-container text-on-primary font-headline text-xs font-black uppercase tracking-wider flex items-center gap-1.5 active:scale-95 transition-transform shadow-md">
-                      <span class="material-symbols-outlined text-base" style="font-variation-settings: 'FILL' 1;">play_arrow</span>
-                      <span>INICIAR</span>
-                    </button>
-                  </div>
-                </article>
-              `;
-            }).join('')}
+          <div id="gym-routines-container" class="flex flex-col gap-3.5">
+            ${renderCardsHtml(filtered)}
           </div>
 
         </main>
@@ -168,16 +220,15 @@ export function renderGymCatalog(container, navigate) {
       navigate('gym-editor', { isNew: true });
     });
 
+    let debounceTimer = null;
     const searchInput = document.getElementById('input-search');
     if (searchInput) {
       searchInput.addEventListener('input', (e) => {
         searchQuery = e.target.value;
-        render();
-        const input = document.getElementById('input-search');
-        if (input) {
-          input.focus();
-          input.setSelectionRange(searchQuery.length, searchQuery.length);
-        }
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          updateCards();
+        }, 120);
       });
     }
 
@@ -185,40 +236,20 @@ export function renderGymCatalog(container, navigate) {
       btn.addEventListener('click', () => {
         hapticTap();
         selectedFilter = btn.getAttribute('data-cat');
-        render();
+        // Update filter button styles without full view reload
+        container.querySelectorAll('.btn-filter').forEach(b => {
+          const isSelected = b.getAttribute('data-cat') === selectedFilter;
+          b.className = `btn-filter shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold font-headline transition-all active:scale-95 ${
+            isSelected
+              ? 'bg-surface-bright border border-primary-container text-primary-container shadow-sm'
+              : 'bg-surface-container border border-outline-variant text-on-surface-variant hover:text-on-surface'
+          }`;
+        });
+        updateCards();
       });
     });
 
-    container.querySelectorAll('.btn-start-gym').forEach(btn => {
-      btn.addEventListener('click', () => {
-        hapticTap();
-        const id = btn.getAttribute('data-routine-id');
-        const routine = storage.getGymRoutineById(id);
-        if (routine) {
-          navigate('gym-live', { routine });
-        }
-      });
-    });
-
-    container.querySelectorAll('.btn-routine-action').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        hapticTap();
-        const action = btn.getAttribute('data-action');
-        const id = btn.getAttribute('data-id');
-
-        if (action === 'edit') {
-          const routine = storage.getGymRoutineById(id);
-          if (routine) navigate('gym-editor', { routine });
-        } else if (action === 'delete') {
-          if (confirm('¿Eliminar esta rutina de gimnasio?')) {
-            storage.deleteGymRoutine(id);
-            routines = storage.getGymRoutines();
-            render();
-          }
-        }
-      });
-    });
+    attachCardEvents(container);
 
     container.querySelectorAll('.nav-tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {

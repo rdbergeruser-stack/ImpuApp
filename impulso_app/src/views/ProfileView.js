@@ -7,8 +7,8 @@ import { renderBottomNav } from '../components/BottomNav.js';
 import { setHtmlPreservingScroll } from '../utils/dom.js';
 
 export function renderProfile(container, navigate) {
-  let settings = storage.getSettings();
-  let history = storage.getHistory();
+  let settings = null;
+  let history = null;
 
   let activeSubTab = 'metrics'; // 'metrics' | 'biometrics'
 

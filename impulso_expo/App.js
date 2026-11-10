@@ -346,6 +346,9 @@ export default function App() {
             originWhitelist={['*']}
             source={{ html: APP_HTML, baseUrl: 'https://impulso.app' }}
             style={styles.webview}
+            androidHardwareAccelerationDisabled={false}
+            renderToHardwareTextureAndroid={true}
+            cacheEnabled={true}
             javaScriptEnabled={true}
             domStorageEnabled={true}
             injectedJavaScriptBeforeContentLoaded={injectedStorageScript}
@@ -354,12 +357,17 @@ export default function App() {
             onMessage={handleMessage}
             onLoadEnd={() => {
               if (availableVoices && availableVoices.length > 0 && webViewRef.current) {
-                const list = availableVoices.map(v => ({
-                  identifier: v.identifier,
-                  name: v.name,
-                  language: v.language,
-                  quality: v.quality
-                }));
+                const list = availableVoices.map(v => {
+                  const male = isMaleVoice(v);
+                  const female = !male && isFemaleVoice(v);
+                  return {
+                    identifier: v.identifier,
+                    name: v.name,
+                    language: v.language,
+                    quality: v.quality,
+                    gender: male ? 'male' : (female ? 'female' : 'unknown')
+                  };
+                });
                 const code = `
                   try {
                     window.__NATIVE_VOICES__ = ${JSON.stringify(list)};

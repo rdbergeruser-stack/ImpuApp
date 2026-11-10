@@ -1,5 +1,3 @@
-import { APP_ICON_BASE64 } from '../utils/appIcon.js';
-
 export function renderHeader({ title = 'ImpuApp', subtitle = 'HOLA, ATLETA', showBack = false, onBack = null, showSettings = true }) {
 
   return `
@@ -11,8 +9,10 @@ export function renderHeader({ title = 'ImpuApp', subtitle = 'HOLA, ATLETA', sho
               <span class="material-symbols-outlined text-[22px]">arrow_back</span>
             </button>
           ` : `
-            <div class="w-10 h-10 rounded-xl bg-surface-container-high border border-outline-variant flex items-center justify-center shadow-sm overflow-hidden p-0.5 shrink-0">
-              <img src="${APP_ICON_BASE64}" class="w-full h-full object-contain rounded-lg" alt="ImpuApp" />
+            <div class="w-10 h-10 rounded-xl bg-surface-container-high border border-outline-variant flex items-center justify-center shadow-sm overflow-hidden p-1.5 shrink-0">
+              <svg class="w-full h-full text-primary-container" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M13 2L4 14H12L11 22L20 10H12L13 2Z" fill="currentColor" />
+              </svg>
             </div>
           `}
           <div>
