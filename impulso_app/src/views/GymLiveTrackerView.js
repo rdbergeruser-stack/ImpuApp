@@ -135,9 +135,8 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
   if (params.resumeGym?.justFinishedTabata) {
     const curEx = exercises[currentExIdx];
     setTimeout(() => {
-      const isLastExerciseOfRoutine = currentExIdx === exercises.length - 1;
       audio.speak(`¡Bloque Tabata completado! Descanso de recuperación.`);
-      startRestTimer(curEx.restSeconds || 90, isLastExerciseOfRoutine);
+      startRestTimer(curEx.restSeconds || 90, true);
     }, 350);
   } else {
     setTimeout(() => {

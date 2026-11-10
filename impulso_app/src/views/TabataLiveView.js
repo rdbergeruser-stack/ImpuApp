@@ -56,7 +56,8 @@ export function renderTabataLive(container, navigate, params = {}) {
     }
   }
 
-  if (config.cooldown > 0) {
+  // No añadir enfriamiento final si el Tabata es parte de una rutina de gimnasio
+  if (!params.gymReturn && config.cooldown > 0) {
     steps.push({
       type: 'cooldown',
       name: 'ENFRIAMIENTO FINAL',
@@ -220,22 +221,24 @@ export function renderTabataLive(container, navigate, params = {}) {
   function finishWorkout() {
     if (timerTimeoutId) clearTimeout(timerTimeoutId);
     releaseWakeLock();
-    audio.playFanfare();
+    try { audio.playFanfare(); } catch (e) {}
 
     if (params.gymReturn) {
-      audio.speak('¡Bloque Tabata completado con éxito!');
+      try { audio.speak('¡Bloque Tabata completado con éxito!'); } catch (e) {}
       const gymData = params.gymReturn;
-      const curEx = gymData.routine.exercises[gymData.currentExIdx];
-      if (!gymData.completedSets[curEx.id]) {
-        gymData.completedSets[curEx.id] = [];
+      const curEx = gymData.routine?.exercises?.[gymData.currentExIdx];
+      if (curEx && curEx.id) {
+        if (!gymData.completedSets[curEx.id]) {
+          gymData.completedSets[curEx.id] = [];
+        }
+        gymData.completedSets[curEx.id].push({
+          setNumber: 1,
+          isTabata: true,
+          tabataTitle: config.title || 'Tabata HIIT',
+          durationSeconds: totalWorkoutDuration,
+          completedAt: new Date().toISOString()
+        });
       }
-      gymData.completedSets[curEx.id].push({
-        setNumber: 1,
-        isTabata: true,
-        tabataTitle: config.title || 'Tabata HIIT',
-        durationSeconds: totalWorkoutDuration,
-        completedAt: new Date().toISOString()
-      });
 
       navigate('gym-live', {
         routine: gymData.routine,
@@ -429,6 +432,13 @@ export function renderTabataLive(container, navigate, params = {}) {
                 <span class="material-symbols-outlined text-[28px]">skip_next</span>
               </button>
             </div>
+
+            ${params.gymReturn ? `
+              <button id="btn-complete-tabata-gym" class="w-full h-12 rounded-xl bg-primary-container text-on-primary font-headline text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md mt-1">
+                <span class="material-symbols-outlined text-lg" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+                <span>COMPLETAR TABATA Y CONTINUAR RUTINA</span>
+              </button>
+            ` : ''}
           </section>
 
         </main>
@@ -472,7 +482,7 @@ export function renderTabataLive(container, navigate, params = {}) {
 
     const nextElem = document.getElementById('ui-next-step');
     if (nextElem) {
-      nextElem.textContent = nextStep ? `${nextStep.name} (${nextStep.duration}s)` : 'FINALIZAR ENTRENAMIENTO';
+      nextElem.textContent = nextStep ? `${nextStep.name} (${nextStep.duration}s)` : (params.gymReturn ? 'CONTINUAR RUTINA DE GIMNASIO' : 'FINALIZAR ENTRENAMIENTO');
     }
 
     const circle = document.getElementById('ui-progress-circle');
@@ -487,6 +497,10 @@ export function renderTabataLive(container, navigate, params = {}) {
     document.getElementById('btn-play-pause')?.addEventListener('click', togglePlayPause);
     document.getElementById('btn-step-next')?.addEventListener('click', skipNext);
     document.getElementById('btn-step-prev')?.addEventListener('click', skipPrev);
+    document.getElementById('btn-complete-tabata-gym')?.addEventListener('click', () => {
+      hapticTap();
+      finishWorkout();
+    });
 
     document.getElementById('btn-toggle-audio')?.addEventListener('click', () => {
       hapticTap();
@@ -500,7 +514,10 @@ export function renderTabataLive(container, navigate, params = {}) {
     document.getElementById('btn-exit')?.addEventListener('click', () => {
       hapticTap();
       if (params.gymReturn) {
-        if (confirm('¿Deseas volver a la rutina de gimnasio sin completar este Tabata?')) {
+        const markComplete = confirm('¿Deseas guardar este Tabata como completado y continuar tu rutina de gimnasio?\n\n• Presiona ACEPTAR para guardarlo como completado.\n• Presiona CANCELAR para salir sin registrar este Tabata.');
+        if (markComplete) {
+          finishWorkout();
+        } else {
           if (timerTimeoutId) clearTimeout(timerTimeoutId);
           releaseWakeLock();
           navigate('gym-live', {
