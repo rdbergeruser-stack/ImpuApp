@@ -3,7 +3,7 @@ import { storage } from '../store/storage.js';
 import { formatDate } from '../utils/formatters.js';
 import { hapticTap, hapticSuccess } from '../utils/haptics.js';
 import { renderBottomNav } from '../components/BottomNav.js';
-import { showConfirmModal, showAlertModal } from '../utils/modal.js';
+import { showConfirmModal, showAlertModal, showPromptModal } from '../utils/modal.js';
 import { setHtmlPreservingScroll } from '../utils/dom.js';
 
 export function renderWeightTracker(container, navigate) {
@@ -313,7 +313,17 @@ export function renderWeightTracker(container, navigate) {
     // Edit Target Weight Modal
     document.getElementById('btn-edit-target')?.addEventListener('click', async () => {
       hapticTap();
-      const promptVal = prompt('Ingresa tu peso objetivo / meta (en kg):', targetWeight.toFixed(1));
+      const promptVal = await showPromptModal({
+        title: 'Fijar Meta de Peso',
+        message: 'Ingresa tu peso objetivo para calcular tu porcentaje de avance y visualizar la meta en la curva de evolución.',
+        defaultValue: targetWeight.toFixed(1),
+        placeholder: 'ej: 72.0',
+        inputType: 'number',
+        step: '0.1',
+        confirmText: 'Guardar Meta',
+        cancelText: 'Cancelar',
+        icon: 'flag'
+      });
       if (promptVal !== null) {
         const parsed = parseFloat(promptVal);
         if (!isNaN(parsed) && parsed >= 30 && parsed <= 250) {
