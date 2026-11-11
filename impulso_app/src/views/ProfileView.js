@@ -229,6 +229,15 @@ export function renderProfile(container, navigate) {
                     </select>
                   </div>
                 </div>
+
+                <!-- Weight Tracker Shortcut Button -->
+                <button id="btn-open-weight-tracker" class="w-full mt-2 py-3 px-3.5 rounded-xl bg-surface-container-high border border-primary-container/40 text-primary-container hover:bg-surface-bright active:scale-95 transition-all flex items-center justify-between shadow-sm">
+                  <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-lg">monitoring</span>
+                    <span class="font-headline text-xs font-black uppercase tracking-wider">CONTROL Y EVOLUCIÓN DE PESO</span>
+                  </div>
+                  <span class="material-symbols-outlined text-sm">arrow_forward_ios</span>
+                </button>
               </section>
 
               <!-- Heart Rate Zones Reference -->
@@ -299,6 +308,11 @@ export function renderProfile(container, navigate) {
       hapticTap();
       activeSubTab = 'biometrics';
       render();
+    });
+
+    document.getElementById('btn-open-weight-tracker')?.addEventListener('click', () => {
+      hapticTap();
+      navigate('weight-tracker');
     });
 
     document.getElementById('btn-reset-stats')?.addEventListener('click', async () => {

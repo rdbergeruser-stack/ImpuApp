@@ -348,10 +348,65 @@ export const DEFAULT_SETTINGS = {
   athleteName: '',
   athleteLevel: 'Intermedio', // 'Principiante' | 'Intermedio' | 'Avanzado'
   athleteStreakDays: 0,
-  athleteWeight: 70,
+  athleteWeight: 74.5,
+  targetWeight: 72.0,
   athleteHeight: 175,
-  athleteAge: 25
+  athleteAge: 25,
+  smartbandConnected: true,
+  smartbandDeviceName: 'SmartBand BLE HR'
 };
 
-export const INITIAL_HISTORY = [];
+export const DEFAULT_WEIGHT_LOGS = [
+  { id: 'w-1', date: new Date(Date.now() - 21 * 86400000).toISOString(), weight: 77.8, diff: 0, notes: 'Inicio de seguimiento' },
+  { id: 'w-2', date: new Date(Date.now() - 14 * 86400000).toISOString(), weight: 76.5, diff: -1.3, notes: 'Semana 1 - Buena adherencia' },
+  { id: 'w-3', date: new Date(Date.now() - 7 * 86400000).toISOString(), weight: 75.3, diff: -1.2, notes: 'Semana 2 - Mayor volumen' },
+  { id: 'w-4', date: new Date(Date.now() - 1 * 86400000).toISOString(), weight: 74.5, diff: -0.8, notes: 'Pesaje reciente en ayunas' }
+];
+
+export const INITIAL_HISTORY = [
+  {
+    id: 'hist-sample-1',
+    type: 'tabata',
+    routineName: 'Tabata Kinetic HIIT',
+    date: new Date(Date.now() - 1 * 3600000).toISOString(),
+    durationSeconds: 480,
+    caloriesEst: 195,
+    summary: '8 intervalos completados al 100%',
+    avgBpm: 164,
+    maxBpm: 182,
+    recoveryDrop: 34,
+    zones: { z1: 5, z2: 10, z3: 15, z4: 35, z5: 35 },
+    hasSmartband: true
+  },
+  {
+    id: 'hist-sample-2',
+    type: 'gym',
+    routineName: 'Torso & Brazos Hipertrofia',
+    date: new Date(Date.now() - 26 * 3600000).toISOString(),
+    durationSeconds: 2720,
+    caloriesEst: 410,
+    totalVolumeKg: 8450,
+    totalSets: 18,
+    summary: 'Completadas 18 series de fuerza + 1 bloque Tabata con 8.450 kg.',
+    avgBpm: 128,
+    maxBpm: 156,
+    recoveryDrop: 28,
+    zones: { z1: 25, z2: 35, z3: 25, z4: 15, z5: 0 },
+    hasSmartband: true
+  },
+  {
+    id: 'hist-sample-3',
+    type: 'runner',
+    routineName: 'Series Cuestas Z4 & Umbral',
+    date: new Date(Date.now() - 52 * 3600000).toISOString(),
+    durationSeconds: 1690,
+    caloriesEst: 340,
+    summary: '9 fases de carrera e intervalos de potencia completados.',
+    avgBpm: 158,
+    maxBpm: 176,
+    recoveryDrop: 32,
+    zones: { z1: 10, z2: 20, z3: 30, z4: 35, z5: 5 },
+    hasSmartband: true
+  }
+];
 

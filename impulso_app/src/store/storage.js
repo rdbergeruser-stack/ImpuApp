@@ -6,6 +6,7 @@ import {
   DEFAULT_GYM_ROUTINES,
   DEFAULT_SETTINGS,
   INITIAL_HISTORY,
+  DEFAULT_WEIGHT_LOGS,
   COLOR_THEMES
 } from './defaultData.js';
 
@@ -14,7 +15,8 @@ const KEYS = {
   TABATA: 'impulso_tabata_presets',
   RUNNER: 'impulso_runner_presets',
   GYM: 'impulso_gym_routines',
-  HISTORY: 'impulso_history'
+  HISTORY: 'impulso_history',
+  WEIGHT_LOGS: 'impulso_weight_logs'
 };
 
 class StorageService {
@@ -24,7 +26,8 @@ class StorageService {
       tabata: null,
       runner: null,
       gym: null,
-      history: null
+      history: null,
+      weightLogs: null
     };
     this.initDefaults();
   }
@@ -44,6 +47,9 @@ class StorageService {
     }
     if (!localStorage.getItem(KEYS.HISTORY)) {
       localStorage.setItem(KEYS.HISTORY, JSON.stringify(INITIAL_HISTORY));
+    }
+    if (!localStorage.getItem(KEYS.WEIGHT_LOGS)) {
+      localStorage.setItem(KEYS.WEIGHT_LOGS, JSON.stringify(DEFAULT_WEIGHT_LOGS));
     }
   }
 
@@ -358,13 +364,110 @@ class StorageService {
     }
   }
 
+  getWeightLogs() {
+    if (this._cache.weightLogs) {
+      return this._cache.weightLogs;
+    }
+    try {
+      const data = localStorage.getItem(KEYS.WEIGHT_LOGS);
+      if (!data) {
+        this._cache.weightLogs = [...DEFAULT_WEIGHT_LOGS];
+        return this._cache.weightLogs;
+      }
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed)) {
+        this._cache.weightLogs = parsed.sort((a, b) => new Date(b.date) - new Date(a.date));
+        return this._cache.weightLogs;
+      }
+      this._cache.weightLogs = [...DEFAULT_WEIGHT_LOGS];
+      return this._cache.weightLogs;
+    } catch (e) {
+      this._cache.weightLogs = [...DEFAULT_WEIGHT_LOGS];
+      return this._cache.weightLogs;
+    }
+  }
+
+  addWeightLog({ weight, notes = '', date = new Date().toISOString() }) {
+    const logs = [...this.getWeightLogs()];
+    const numWeight = parseFloat(weight);
+    if (isNaN(numWeight) || numWeight < 30 || numWeight > 250) {
+      throw new Error('Peso inválido. Debe estar entre 30 y 250 kg.');
+    }
+
+    const previousLog = logs[0] || null;
+    const diff = previousLog ? parseFloat((numWeight - previousLog.weight).toFixed(1)) : 0;
+
+    const newLog = {
+      id: 'weight-' + Date.now(),
+      date,
+      weight: numWeight,
+      diff,
+      notes: notes.trim()
+    };
+
+    logs.unshift(newLog);
+    this._cache.weightLogs = logs;
+    localStorage.setItem(KEYS.WEIGHT_LOGS, JSON.stringify(logs));
+
+    // Sincronizar automáticamente el peso del atleta y actualizar IMC
+    const settings = this.getSettings();
+    settings.athleteWeight = numWeight;
+    this.saveSettings(settings);
+
+    if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+      try {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'STORAGE_SAVE',
+          key: KEYS.WEIGHT_LOGS,
+          value: JSON.stringify(logs)
+        }));
+      } catch (e) {}
+    }
+
+    return newLog;
+  }
+
+  deleteWeightLog(id) {
+    let logs = this.getWeightLogs().filter(l => l.id !== id);
+    this._cache.weightLogs = logs;
+    localStorage.setItem(KEYS.WEIGHT_LOGS, JSON.stringify(logs));
+
+    // Si aún quedan registros, actualizar el peso actual al más reciente
+    if (logs.length > 0) {
+      const latest = logs[0];
+      const settings = this.getSettings();
+      settings.athleteWeight = latest.weight;
+      this.saveSettings(settings);
+    }
+
+    if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+      try {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'STORAGE_SAVE',
+          key: KEYS.WEIGHT_LOGS,
+          value: JSON.stringify(logs)
+        }));
+      } catch (e) {}
+    }
+  }
+
+  saveTargetWeight(targetWeight) {
+    const target = parseFloat(targetWeight);
+    if (!isNaN(target) && target >= 30 && target <= 250) {
+      const settings = this.getSettings();
+      settings.targetWeight = target;
+      this.saveSettings(settings);
+    }
+  }
+
   resetAllData() {
     this._cache = {
       settings: null,
       tabata: null,
       runner: null,
       gym: null,
-      history: null
+      history: null,
+      weightLogs: null
     };
     localStorage.clear();
     this.initDefaults();

@@ -22,6 +22,7 @@ import { renderHistory } from './views/HistoryView.js';
 import { renderProfile } from './views/ProfileView.js';
 import { renderSettings } from './views/SettingsView.js';
 import { renderOnboarding } from './views/OnboardingView.js';
+import { renderWeightTracker } from './views/WeightTrackerView.js';
 
 class AppRouter {
   constructor() {
@@ -104,6 +105,9 @@ class AppRouter {
         break;
       case 'profile':
         renderProfile(this.appContainer, nav);
+        break;
+      case 'weight-tracker':
+        renderWeightTracker(this.appContainer, nav);
         break;
       case 'settings':
         renderSettings(this.appContainer, nav, params);
