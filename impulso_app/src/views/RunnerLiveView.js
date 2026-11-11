@@ -5,6 +5,7 @@ import { formatTime } from '../utils/formatters.js';
 import { audio } from '../audio/audioService.js';
 import { hapticTap, hapticCountdown, hapticPhaseChange } from '../utils/haptics.js';
 import { requestWakeLock, releaseWakeLock } from '../utils/wakeLock.js';
+import { showConfirmModal } from '../utils/modal.js';
 
 export function renderRunnerLive(container, navigate, params = {}) {
   const preset = params.preset || storage.getRunnerPresets()[0];
@@ -412,12 +413,20 @@ export function renderRunnerLive(container, navigate, params = {}) {
       if (icon) icon.textContent = settings.soundEnabled ? 'volume_up' : 'volume_off';
     });
 
-    document.getElementById('btn-runner-exit')?.addEventListener('click', () => {
+    document.getElementById('btn-runner-exit')?.addEventListener('click', async () => {
       hapticTap();
-      if (confirm('¿Deseas finalizar la sesión de carrera?')) {
+      const confirmed = await showConfirmModal({
+        title: 'Finalizar Carrera',
+        message: '¿Deseas finalizar la sesión de carrera actual? El progreso de la sesión se perderá.',
+        confirmText: 'Sí, finalizar',
+        cancelText: 'Continuar corriendo',
+        confirmDanger: true,
+        icon: 'directions_run'
+      });
+      if (confirmed) {
         if (timerTimeoutId) clearTimeout(timerTimeoutId);
         releaseWakeLock();
-        navigate('runner-catalog');
+        navigate('routines-hub', { tab: 'runner' });
       }
     });
   }

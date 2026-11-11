@@ -5,6 +5,7 @@ import { audio } from '../audio/audioService.js';
 import { hapticTap, setHapticsEnabled } from '../utils/haptics.js';
 import { setWakeLockEnabled } from '../utils/wakeLock.js';
 import { COLOR_THEMES } from '../store/defaultData.js';
+import { showConfirmModal, showAlertModal } from '../utils/modal.js';
 
 export function renderSettings(container, navigate, params = {}) {
   let settings = storage.getSettings();
@@ -542,12 +543,24 @@ export function renderSettings(container, navigate, params = {}) {
       storage.saveSettings(settings);
     });
 
-    document.getElementById('btn-reset-all')?.addEventListener('click', () => {
+    document.getElementById('btn-reset-all')?.addEventListener('click', async () => {
       hapticTap();
-      if (confirm('¿Restaurar valores de fábrica? Se reiniciarán todos los ajustes e historial.')) {
+      const confirmed = await showConfirmModal({
+        title: 'Restaurar de Fábrica',
+        message: '¿Restaurar valores de fábrica? Se reiniciarán todos los ajustes, perfiles e historial.',
+        confirmText: 'Sí, restaurar',
+        cancelText: 'Cancelar',
+        confirmDanger: true,
+        icon: 'warning'
+      });
+      if (confirmed) {
         storage.resetAllData();
         settings = storage.getSettings();
-        alert('Ajustes reiniciados a valores por defecto.');
+        await showAlertModal({
+          title: 'Ajustes Restaurados',
+          message: 'Todos los ajustes se han reiniciado a sus valores por defecto.',
+          type: 'success'
+        });
         render();
       }
     });

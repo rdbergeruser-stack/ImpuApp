@@ -4,6 +4,7 @@ import { audio } from '../audio/audioService.js';
 import { hapticTap, hapticSuccess } from '../utils/haptics.js';
 import { requestWakeLock, releaseWakeLock } from '../utils/wakeLock.js';
 import { setHtmlPreservingScroll } from '../utils/dom.js';
+import { showConfirmModal, showAlertModal } from '../utils/modal.js';
 
 export function renderGymLiveTracker(container, navigate, params = {}) {
   const routine = params.routine || storage.getGymRoutines()[0];
@@ -44,6 +45,7 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
   let currentExIdx = 0;
   let workoutElapsedSeconds = 0;
   let workoutTimerInterval = null;
+  let workoutStartTime = Date.now();
 
   // Key: ex.id -> Array of completed sets
   const completedSets = {};
@@ -97,7 +99,6 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
   let nextExpectedRestTick = 0;
   let restWasLastSet = false;
   let restTargetEndTime = 0;
-  let workoutStartTime = Date.now();
 
   // WakeLock
   requestWakeLock();
@@ -133,11 +134,25 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
 
   // Voice announcement or post-Tabata rest on load
   if (params.resumeGym?.justFinishedTabata) {
-    const curEx = exercises[currentExIdx];
-    setTimeout(() => {
-      audio.speak(`¡Bloque Tabata completado! Descanso de recuperación.`);
-      startRestTimer(curEx.restSeconds || 90, true);
-    }, 350);
+    if (currentExIdx >= exercises.length - 1) {
+      // Si el Tabata era el último ejercicio, finalizar automáticamente la rutina de gimnasio
+      setTimeout(() => {
+        finishGymWorkout();
+      }, 350);
+    } else {
+      const curEx = exercises[currentExIdx];
+      const restSec = typeof curEx.restSeconds === 'number' ? curEx.restSeconds : 90;
+      if (restSec > 0) {
+        setTimeout(() => {
+          audio.speak(`¡Bloque Tabata completado! Descanso de recuperación.`);
+          startRestTimer(restSec, true);
+        }, 350);
+      } else {
+        setTimeout(() => {
+          nextExercise();
+        }, 350);
+      }
+    }
   } else {
     setTimeout(() => {
       announceCurrentExercise();
@@ -947,9 +962,17 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
     document.getElementById('btn-prev-ex')?.addEventListener('click', prevExercise);
     document.getElementById('btn-finish-gym')?.addEventListener('click', finishGymWorkout);
 
-    document.getElementById('btn-gym-exit')?.addEventListener('click', () => {
+    document.getElementById('btn-gym-exit')?.addEventListener('click', async () => {
       hapticTap();
-      if (confirm('¿Deseas salir del entrenamiento de gimnasio en curso?')) {
+      const confirmed = await showConfirmModal({
+        title: 'Salir de la Rutina',
+        message: '¿Deseas salir del entrenamiento de gimnasio en curso? El progreso de las series registradas se guardará.',
+        confirmText: 'Sí, salir',
+        cancelText: 'Continuar entrenando',
+        confirmDanger: true,
+        icon: 'logout'
+      });
+      if (confirmed) {
         clearInterval(workoutTimerInterval);
         if (restTimeoutId) clearTimeout(restTimeoutId);
         document.removeEventListener('visibilitychange', handleVisibilityChange);

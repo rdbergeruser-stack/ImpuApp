@@ -4,6 +4,7 @@ import { storage } from '../store/storage.js';
 import { formatTime, formatDate, formatKg } from '../utils/formatters.js';
 import { hapticTap } from '../utils/haptics.js';
 import { renderBottomNav } from '../components/BottomNav.js';
+import { showConfirmModal } from '../utils/modal.js';
 
 export function renderHistory(container, navigate) {
   let history = storage.getHistory();
@@ -149,9 +150,17 @@ export function renderHistory(container, navigate) {
       navigate('home');
     });
 
-    document.getElementById('btn-clear-history')?.addEventListener('click', () => {
+    document.getElementById('btn-clear-history')?.addEventListener('click', async () => {
       hapticTap();
-      if (confirm('¿Vaciar todo el historial de entrenamientos?')) {
+      const confirmed = await showConfirmModal({
+        title: 'Vaciar Historial',
+        message: '¿Estás seguro de que deseas vaciar todo el historial de entrenamientos? Esta acción es irreversible.',
+        confirmText: 'Sí, vaciar',
+        cancelText: 'Cancelar',
+        confirmDanger: true,
+        icon: 'delete_sweep'
+      });
+      if (confirmed) {
         storage.clearHistory();
         history = [];
         render();

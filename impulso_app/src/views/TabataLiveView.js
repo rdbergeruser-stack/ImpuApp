@@ -5,6 +5,7 @@ import { formatTime } from '../utils/formatters.js';
 import { audio } from '../audio/audioService.js';
 import { hapticTap, hapticCountdown, hapticPhaseChange } from '../utils/haptics.js';
 import { requestWakeLock, releaseWakeLock } from '../utils/wakeLock.js';
+import { showConfirmModal, showAlertModal } from '../utils/modal.js';
 
 export function renderTabataLive(container, navigate, params = {}) {
   const config = params.config || storage.getTabataPresets()[0];
@@ -156,7 +157,9 @@ export function renderTabataLive(container, navigate, params = {}) {
       if (isPaused) return;
       nextExpectedTick += 1000;
       tick();
-      scheduleNextTick();
+      if (!isPaused) {
+        scheduleNextTick();
+      }
     }, delay);
   }
 
@@ -219,7 +222,11 @@ export function renderTabataLive(container, navigate, params = {}) {
   }
 
   function finishWorkout() {
-    if (timerTimeoutId) clearTimeout(timerTimeoutId);
+    isPaused = true;
+    if (timerTimeoutId) {
+      clearTimeout(timerTimeoutId);
+      timerTimeoutId = null;
+    }
     releaseWakeLock();
     try { audio.playFanfare(); } catch (e) {}
 
@@ -240,20 +247,23 @@ export function renderTabataLive(container, navigate, params = {}) {
         });
       }
 
+      const elapsed = (gymData.workoutElapsedSeconds || 0) + totalWorkoutDuration;
+      const startTime = gymData.workoutStartTime || (Date.now() - (elapsed * 1000));
+
       navigate('gym-live', {
         routine: gymData.routine,
         resumeGym: {
           currentExIdx: gymData.currentExIdx,
           completedSets: gymData.completedSets,
-          workoutElapsedSeconds: gymData.workoutElapsedSeconds + totalWorkoutDuration,
-          workoutStartTime: gymData.workoutStartTime,
+          workoutElapsedSeconds: elapsed,
+          workoutStartTime: startTime,
           justFinishedTabata: true
         }
       });
       return;
     }
 
-    audio.speak('¡Entrenamiento completado! Excelente trabajo.');
+    try { audio.speak('¡Entrenamiento completado! Excelente trabajo.'); } catch (e) {}
 
     const summaryData = {
       type: 'tabata',
@@ -511,15 +521,25 @@ export function renderTabataLive(container, navigate, params = {}) {
       if (icon) icon.textContent = settings.soundEnabled ? 'volume_up' : 'volume_off';
     });
 
-    document.getElementById('btn-exit')?.addEventListener('click', () => {
+    document.getElementById('btn-exit')?.addEventListener('click', async () => {
       hapticTap();
       if (params.gymReturn) {
-        const markComplete = confirm('¿Deseas guardar este Tabata como completado y continuar tu rutina de gimnasio?\n\n• Presiona ACEPTAR para guardarlo como completado.\n• Presiona CANCELAR para salir sin registrar este Tabata.');
+        const markComplete = await showConfirmModal({
+          title: 'Salir de Tabata',
+          message: '¿Deseas marcar este bloque Tabata como realizado antes de volver a la rutina de gimnasio, o cancelar y volver sin registrarlo?',
+          confirmText: 'Guardar y volver',
+          cancelText: 'Salir sin registrar',
+          confirmDanger: false,
+          icon: 'fitness_center'
+        });
+
+        isPaused = true;
+        if (timerTimeoutId) clearTimeout(timerTimeoutId);
+        releaseWakeLock();
+
         if (markComplete) {
           finishWorkout();
         } else {
-          if (timerTimeoutId) clearTimeout(timerTimeoutId);
-          releaseWakeLock();
           navigate('gym-live', {
             routine: params.gymReturn.routine,
             resumeGym: { ...params.gymReturn }
@@ -527,7 +547,17 @@ export function renderTabataLive(container, navigate, params = {}) {
         }
         return;
       }
-      if (confirm('¿Deseas salir del entrenamiento actual?')) {
+
+      const confirmed = await showConfirmModal({
+        title: 'Salir del Entrenamiento',
+        message: '¿Deseas salir del entrenamiento Tabata actual? El progreso de esta sesión se perderá.',
+        confirmText: 'Sí, salir',
+        cancelText: 'Continuar',
+        confirmDanger: true,
+        icon: 'logout'
+      });
+      if (confirmed) {
+        isPaused = true;
         if (timerTimeoutId) clearTimeout(timerTimeoutId);
         releaseWakeLock();
         navigate('tabata-config', { preset: config, returnTo: params && params.returnTo ? params.returnTo : 'home' });

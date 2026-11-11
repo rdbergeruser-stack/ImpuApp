@@ -3,6 +3,7 @@
 import { storage } from '../store/storage.js';
 import { hapticTap } from '../utils/haptics.js';
 import { renderBottomNav } from '../components/BottomNav.js';
+import { showConfirmModal } from '../utils/modal.js';
 
 export function renderGymCatalog(container, navigate) {
   let routines = storage.getGymRoutines();
@@ -128,11 +129,20 @@ export function renderGymCatalog(container, navigate) {
           const routine = storage.getGymRoutineById(id);
           if (routine) navigate('gym-editor', { routine });
         } else if (action === 'delete') {
-          if (confirm('¿Eliminar esta rutina de gimnasio?')) {
-            storage.deleteGymRoutine(id);
-            routines = storage.getGymRoutines();
-            updateCards();
-          }
+          showConfirmModal({
+            title: 'Eliminar Rutina',
+            message: '¿Estás seguro de que deseas eliminar esta rutina de gimnasio? Esta acción no se puede deshacer.',
+            confirmText: 'Sí, eliminar',
+            cancelText: 'Cancelar',
+            confirmDanger: true,
+            icon: 'delete'
+          }).then(confirmed => {
+            if (confirmed) {
+              storage.deleteGymRoutine(id);
+              routines = storage.getGymRoutines();
+              updateCards();
+            }
+          });
         }
       });
     });

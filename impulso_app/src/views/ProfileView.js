@@ -5,6 +5,7 @@ import { formatTime, formatKg } from '../utils/formatters.js';
 import { hapticTap } from '../utils/haptics.js';
 import { renderBottomNav } from '../components/BottomNav.js';
 import { setHtmlPreservingScroll } from '../utils/dom.js';
+import { showConfirmModal } from '../utils/modal.js';
 
 export function renderProfile(container, navigate) {
   let settings = null;
@@ -300,18 +301,34 @@ export function renderProfile(container, navigate) {
       render();
     });
 
-    document.getElementById('btn-reset-stats')?.addEventListener('click', () => {
+    document.getElementById('btn-reset-stats')?.addEventListener('click', async () => {
       hapticTap();
-      if (confirm('¿Deseas reiniciar a 0 todas las estadísticas, tiempo y volumen acumulado?')) {
+      const confirmed = await showConfirmModal({
+        title: 'Reiniciar Estadísticas',
+        message: '¿Deseas reiniciar a 0 todas las estadísticas, tiempo y volumen acumulado? El historial de sesiones se vaciará.',
+        confirmText: 'Sí, reiniciar',
+        cancelText: 'Cancelar',
+        confirmDanger: true,
+        icon: 'restart_alt'
+      });
+      if (confirmed) {
         storage.clearHistory();
         history = [];
         render();
       }
     });
 
-    document.getElementById('btn-factory-reset')?.addEventListener('click', () => {
+    document.getElementById('btn-factory-reset')?.addEventListener('click', async () => {
       hapticTap();
-      if (confirm('¿Restaurar valores de fábrica? Se borrarán todos los datos, rutinas y ajustes, y volverás a la pantalla de bienvenida.')) {
+      const confirmed = await showConfirmModal({
+        title: 'Restaurar de Fábrica',
+        message: '¿Restaurar valores de fábrica? Se borrarán todos los datos, rutinas y ajustes, y volverás a la pantalla de bienvenida.',
+        confirmText: 'Sí, restaurar todo',
+        cancelText: 'Cancelar',
+        confirmDanger: true,
+        icon: 'warning'
+      });
+      if (confirmed) {
         storage.resetAllData();
         navigate('onboarding');
       }

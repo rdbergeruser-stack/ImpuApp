@@ -1,6 +1,7 @@
 import { storage } from '../store/storage.js';
 import { hapticTap } from '../utils/haptics.js';
 import { setHtmlPreservingScroll } from '../utils/dom.js';
+import { showAlertModal } from '../utils/modal.js';
 
 export function renderGymEditor(container, navigate, params = {}) {
   const isNew = !!params.isNew;
@@ -498,7 +499,11 @@ export function renderGymEditor(container, navigate, params = {}) {
           ex.targetReps = ex.subExercises[0].targetReps;
           render();
         } else {
-          alert('Una súper serie debe contener al menos 2 ejercicios.');
+          showAlertModal({
+            title: 'Súper Serie',
+            message: 'Una súper serie debe contener al menos 2 ejercicios.',
+            type: 'warning'
+          });
         }
       });
     });
@@ -543,7 +548,11 @@ export function renderGymEditor(container, navigate, params = {}) {
           routine.exercises.splice(idx, 1);
           render();
         } else {
-          alert('La rutina debe tener al menos un bloque de ejercicio.');
+          showAlertModal({
+            title: 'Bloque Requerido',
+            message: 'La rutina debe tener al menos un bloque de ejercicio.',
+            type: 'warning'
+          });
         }
       });
     });
@@ -641,11 +650,15 @@ export function renderGymEditor(container, navigate, params = {}) {
     });
 
     // Guardar Rutina
-    document.getElementById('btn-save-routine')?.addEventListener('click', () => {
+    document.getElementById('btn-save-routine')?.addEventListener('click', async () => {
       hapticTap();
       syncInputs();
       storage.saveGymRoutine(routine);
-      alert('¡Rutina guardada con éxito!');
+      await showAlertModal({
+        title: '¡Rutina Guardada!',
+        message: `La rutina "${routine.title}" se guardó correctamente.`,
+        type: 'success'
+      });
       navigate('routines-hub', { tab: 'gym' });
     });
   }

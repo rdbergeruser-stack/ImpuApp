@@ -4,6 +4,7 @@ import { storage } from '../store/storage.js';
 import { formatTime } from '../utils/formatters.js';
 import { hapticTap } from '../utils/haptics.js';
 import { renderBottomNav } from '../components/BottomNav.js';
+import { showConfirmModal, showAlertModal } from '../utils/modal.js';
 
 export function renderRoutinesHub(container, navigate, params = {}) {
   let activeTab = params.tab || 'gym'; // 'gym' | 'tabata' | 'runner'
@@ -289,10 +290,18 @@ export function renderRoutinesHub(container, navigate, params = {}) {
     });
 
     container.querySelectorAll('[data-delete-gym]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         hapticTap();
         const id = btn.getAttribute('data-delete-gym');
-        if (confirm('¿Eliminar esta rutina de gimnasio?')) {
+        const confirmed = await showConfirmModal({
+          title: 'Eliminar Rutina',
+          message: '¿Estás seguro de que deseas eliminar esta rutina de gimnasio? Esta acción no se puede deshacer.',
+          confirmText: 'Sí, eliminar',
+          cancelText: 'Cancelar',
+          confirmDanger: true,
+          icon: 'delete'
+        });
+        if (confirmed) {
           storage.deleteGymRoutine(id);
           render();
         }
@@ -319,14 +328,26 @@ export function renderRoutinesHub(container, navigate, params = {}) {
     });
 
     container.querySelectorAll('[data-delete-tabata]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         hapticTap();
         const id = btn.getAttribute('data-delete-tabata');
         if (tabataPresets.length <= 1) {
-          alert('Debes mantener al menos una rutina Tabata.');
+          showAlertModal({
+            title: 'Atención',
+            message: 'Debes mantener al menos una rutina Tabata configurada.',
+            type: 'warning'
+          });
           return;
         }
-        if (confirm('¿Eliminar esta rutina Tabata?')) {
+        const confirmed = await showConfirmModal({
+          title: 'Eliminar Tabata',
+          message: '¿Estás seguro de que deseas eliminar este preset de Tabata?',
+          confirmText: 'Sí, eliminar',
+          cancelText: 'Cancelar',
+          confirmDanger: true,
+          icon: 'delete'
+        });
+        if (confirmed) {
           storage.deleteTabataPreset(id);
           render();
         }
@@ -353,14 +374,26 @@ export function renderRoutinesHub(container, navigate, params = {}) {
     });
 
     container.querySelectorAll('[data-delete-runner]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         hapticTap();
         const id = btn.getAttribute('data-delete-runner');
         if (runnerPresets.length <= 1) {
-          alert('Debes mantener al menos una rutina Runner.');
+          showAlertModal({
+            title: 'Atención',
+            message: 'Debes mantener al menos una rutina Runner configurada.',
+            type: 'warning'
+          });
           return;
         }
-        if (confirm('¿Eliminar esta rutina de Runner?')) {
+        const confirmed = await showConfirmModal({
+          title: 'Eliminar Rutina Runner',
+          message: '¿Estás seguro de que deseas eliminar esta rutina de Runner?',
+          confirmText: 'Sí, eliminar',
+          cancelText: 'Cancelar',
+          confirmDanger: true,
+          icon: 'delete'
+        });
+        if (confirmed) {
           storage.deleteRunnerPreset(id);
           render();
         }

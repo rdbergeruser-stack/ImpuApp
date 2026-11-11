@@ -2,6 +2,7 @@ import { storage } from '../store/storage.js';
 import { formatTime } from '../utils/formatters.js';
 import { hapticTap, hapticSuccess } from '../utils/haptics.js';
 import { setHtmlPreservingScroll } from '../utils/dom.js';
+import { showAlertModal } from '../utils/modal.js';
 
 export function renderRunnerEditor(container, navigate, params = {}) {
   const isNew = !!(params && params.isNew);
@@ -229,12 +230,17 @@ export function renderRunnerEditor(container, navigate, params = {}) {
     }
 
     storage.saveRunnerPreset(routine);
-    alert('¡Rutina de Runner guardada con éxito!');
-    if (targetRoute === 'live') {
-      navigate('runner-live', { preset: routine });
-    } else {
-      navigate('routines-hub', { tab: 'runner' });
-    }
+    showAlertModal({
+      title: '¡Rutina Guardada!',
+      message: 'Rutina de Runner guardada con éxito.',
+      type: 'success'
+    }).then(() => {
+      if (targetRoute === 'live') {
+        navigate('runner-live', { preset: routine });
+      } else {
+        navigate('routines-hub', { tab: 'runner' });
+      }
+    });
   }
 
   function attachEvents() {
@@ -302,7 +308,11 @@ export function renderRunnerEditor(container, navigate, params = {}) {
           routine.intervals.splice(idx, 1);
           render();
         } else {
-          alert('La rutina debe tener al menos un intervalo.');
+          showAlertModal({
+            title: 'Intervalo Requerido',
+            message: 'La rutina de Runner debe tener al menos un intervalo.',
+            type: 'warning'
+          });
         }
       });
     });
@@ -349,12 +359,16 @@ export function renderRunnerEditor(container, navigate, params = {}) {
     });
 
     // Save Runner Routine
-    document.getElementById('btn-save-runner')?.addEventListener('click', () => {
+    document.getElementById('btn-save-runner')?.addEventListener('click', async () => {
       hapticSuccess();
       routine.title = document.getElementById('input-runner-title')?.value.trim() || routine.title;
       routine.totalDistanceEst = document.getElementById('input-runner-dist')?.value.trim() || routine.totalDistanceEst;
       storage.saveRunnerPreset(routine);
-      alert(`¡Rutina Runner "${routine.title}" guardada con éxito!`);
+      await showAlertModal({
+        title: '¡Rutina Guardada!',
+        message: `Rutina Runner "${routine.title}" guardada con éxito.`,
+        type: 'success'
+      });
       navigate('routines-hub', { tab: 'runner' });
     });
   }
