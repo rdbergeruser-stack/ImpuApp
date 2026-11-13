@@ -181,15 +181,18 @@ export function renderWeightTracker(container, navigate) {
                 −
               </button>
 
-              <div class="flex flex-col items-center justify-center flex-1">
-                <div class="flex items-baseline gap-1">
-                  <span id="ui-current-input-weight" class="font-headline text-4xl font-black text-white tabular-nums tracking-tight">
+              <button id="btn-manual-weight" class="flex flex-col items-center justify-center flex-1 py-1 px-2 rounded-xl hover:bg-surface-container active:scale-95 transition-all group" title="Toca para ingresar peso con teclado">
+                <div class="flex items-baseline gap-1.5">
+                  <span id="ui-current-input-weight" class="font-headline text-4xl font-black text-white tabular-nums tracking-tight group-hover:text-primary-container transition-colors">
                     ${currentInputWeight.toFixed(1)}
                   </span>
                   <span class="font-headline text-sm font-bold text-primary-dim uppercase">KG</span>
+                  <span class="material-symbols-outlined text-sm text-on-surface-variant group-hover:text-primary-container transition-colors ml-0.5">edit</span>
                 </div>
-                <span class="text-[9px] text-on-surface-variant font-bold">Toca para ajustar rápido</span>
-              </div>
+                <span class="text-[9px] text-primary-dim font-bold flex items-center gap-1">
+                  <span>Toca para ingresar con teclado</span>
+                </span>
+              </button>
 
               <button id="btn-step-plus" class="w-12 h-12 rounded-xl bg-surface-container border border-outline-variant flex items-center justify-center text-primary-container font-headline text-2xl font-black active:scale-90 transition-transform">
                 +
@@ -266,19 +269,43 @@ export function renderWeightTracker(container, navigate) {
       navigate('profile');
     });
 
-    // Steppers
+    // Steppers (0.1 kg fine step)
     document.getElementById('btn-step-minus')?.addEventListener('click', () => {
       hapticTap();
-      currentInputWeight = Math.max(30, parseFloat((currentInputWeight - 0.2).toFixed(1)));
+      currentInputWeight = Math.max(30, parseFloat((currentInputWeight - 0.1).toFixed(1)));
       const el = document.getElementById('ui-current-input-weight');
       if (el) el.textContent = currentInputWeight.toFixed(1);
     });
 
     document.getElementById('btn-step-plus')?.addEventListener('click', () => {
       hapticTap();
-      currentInputWeight = Math.min(250, parseFloat((currentInputWeight + 0.2).toFixed(1)));
+      currentInputWeight = Math.min(250, parseFloat((currentInputWeight + 0.1).toFixed(1)));
       const el = document.getElementById('ui-current-input-weight');
       if (el) el.textContent = currentInputWeight.toFixed(1);
+    });
+
+    // Manual Direct Weight Input via Keyboard
+    document.getElementById('btn-manual-weight')?.addEventListener('click', async () => {
+      hapticTap();
+      const promptVal = await showPromptModal({
+        title: 'Ingresar Peso',
+        message: 'Escribe tu peso actual en kilogramos con el teclado:',
+        defaultValue: currentInputWeight.toFixed(1),
+        placeholder: 'ej: 74.5',
+        inputType: 'number',
+        step: '0.1',
+        confirmText: 'Aplicar',
+        cancelText: 'Cancelar',
+        icon: 'scale'
+      });
+      if (promptVal !== null) {
+        const parsed = parseFloat(promptVal);
+        if (!isNaN(parsed) && parsed >= 30 && parsed <= 250) {
+          currentInputWeight = parseFloat(parsed.toFixed(1));
+          const el = document.getElementById('ui-current-input-weight');
+          if (el) el.textContent = currentInputWeight.toFixed(1);
+        }
+      }
     });
 
     // Save weight

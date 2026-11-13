@@ -26,16 +26,23 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
             id: (ex.id || 'ex') + '-sub-1',
             name: ex.name || 'Primer Ejercicio',
             defaultWeight: typeof ex.defaultWeight === 'number' ? ex.defaultWeight : 40,
-            targetReps: ex.targetReps || '10'
+            targetReps: ex.targetReps || '10',
+            mode: ex.mode || 'reps'
           },
           {
             id: (ex.id || 'ex') + '-sub-2',
             name: ex.supersetName || 'Segundo Ejercicio',
             defaultWeight: typeof ex.supersetWeight === 'number' ? ex.supersetWeight : 16,
-            targetReps: ex.supersetReps || '12'
+            targetReps: ex.supersetReps || '12',
+            mode: 'reps'
           }
         ];
       }
+      ex.subExercises.forEach(sub => {
+        sub.mode = sub.mode || 'reps';
+      });
+    } else {
+      ex.mode = ex.mode || 'reps';
     }
     return ex;
   }
@@ -68,7 +75,7 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
   // Interactive state for current active block
   // Single exercise values
   let currentSingleWeight = exercises[currentExIdx]?.defaultWeight || 50;
-  let currentSingleReps = parseInt(exercises[currentExIdx]?.targetReps) || 10;
+  let currentSingleReps = parseInt(exercises[currentExIdx]?.targetReps) || (exercises[currentExIdx]?.mode === 'seg' ? 30 : 10);
 
   // N-exercise Superset values: array of { weight, reps }
   let currentSupersetValues = [];
@@ -82,11 +89,11 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
     } else if (curEx.isSuperset) {
       currentSupersetValues = curEx.subExercises.map(sub => ({
         weight: typeof sub.defaultWeight === 'number' ? sub.defaultWeight : 20,
-        reps: parseInt(sub.targetReps) || 10
+        reps: parseInt(sub.targetReps) || (sub.mode === 'seg' ? 30 : 10)
       }));
     } else {
       currentSingleWeight = typeof curEx.defaultWeight === 'number' ? curEx.defaultWeight : 50;
-      currentSingleReps = parseInt(curEx.targetReps) || 10;
+      currentSingleReps = parseInt(curEx.targetReps) || (curEx.mode === 'seg' ? 30 : 10);
     }
   }
   updateActiveValuesForCurrentEx();
@@ -351,7 +358,8 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
         subExercises: curEx.subExercises.map((sub, idx) => ({
           name: sub.name,
           weight: currentSupersetValues[idx]?.weight || 0,
-          reps: currentSupersetValues[idx]?.reps || 0
+          reps: currentSupersetValues[idx]?.reps || 0,
+          mode: sub.mode || 'reps'
         })),
         completedAt: new Date().toISOString()
       });
@@ -372,6 +380,7 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
         isSuperset: false,
         weight: currentSingleWeight,
         reps: currentSingleReps,
+        mode: curEx.mode || 'reps',
         completedAt: new Date().toISOString()
       });
       audio.playSetLogged();
@@ -435,12 +444,16 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
         }
         if (s.isSuperset && Array.isArray(s.subExercises)) {
           s.subExercises.forEach(sub => {
-            totalVolume += ((sub.weight || 0) * (sub.reps || 0));
+            const mult = sub.mode === 'c_lado' ? 2 : 1;
+            const count = sub.mode === 'seg' ? 1 : (sub.reps || 0);
+            totalVolume += ((sub.weight || 0) * count * mult);
           });
         } else if (s.isSuperset && s.weightB) {
           totalVolume += ((s.weight || 0) * (s.reps || 0)) + ((s.weightB || 0) * (s.repsB || 0));
         } else {
-          totalVolume += ((s.weight || 0) * (s.reps || 0));
+          const mult = s.mode === 'c_lado' ? 2 : 1;
+          const count = s.mode === 'seg' ? 1 : (s.reps || 0);
+          totalVolume += ((s.weight || 0) * count * mult);
         }
         totalSetsLogged++;
       });
@@ -567,7 +580,7 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
                 </span>
               </div>
               <span class="text-xs text-on-surface-variant font-bold">
-                ${curEx.isTabata ? `${currentTabata ? `${currentTabata.cycles} ciclos • ${currentTabata.work}s / ${currentTabata.rest}s` : 'HIIT'}` : curEx.isSuperset ? `${curEx.subExercises.length} ejercicios combinados` : `Meta: ${curEx.targetReps} reps`}
+                ${curEx.isTabata ? `${currentTabata ? `${currentTabata.cycles} ciclos • ${currentTabata.work}s / ${currentTabata.rest}s` : 'HIIT'}` : curEx.isSuperset ? `${curEx.subExercises.length} ejercicios combinados` : `Meta: ${curEx.targetReps} ${curEx.mode === 'seg' ? 'seg' : curEx.mode === 'c_lado' ? 'c/lado' : 'reps'}`}
               </span>
             </div>
 
@@ -628,7 +641,7 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
                           <span class="w-4 h-4 rounded-full bg-primary-container text-on-primary-container text-[9px] font-black flex items-center justify-center">${sIdx + 1}</span>
                           <span class="truncate max-w-[200px]">${sub.name}</span>
                         </span>
-                        <span class="text-[9px] text-on-surface-variant font-bold">Meta: ${sub.targetReps} reps</span>
+                        <span class="text-[9px] text-on-surface-variant font-bold">Meta: ${sub.targetReps} ${sub.mode === 'seg' ? 'seg' : sub.mode === 'c_lado' ? 'c/lado' : 'reps'}</span>
                       </div>
 
                       <div class="grid grid-cols-2 gap-2">
@@ -646,15 +659,17 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
                           </div>
                         </div>
 
-                        <!-- Reps -->
+                        <!-- Reps / Segundos / C/lado -->
                         <div class="bg-surface-container-low p-2 rounded-lg border border-outline-variant text-center shrink-0">
-                          <span class="text-[9px] font-bold text-on-surface-variant uppercase block">Reps</span>
+                          <span class="text-[9px] font-bold text-on-surface-variant uppercase block">
+                            ${sub.mode === 'seg' ? 'Segundos' : sub.mode === 'c_lado' ? 'c/lado' : 'Reps'}
+                          </span>
                           <div id="ui-super-reps-${sIdx}" class="font-headline font-black text-2xl text-primary tabular-nums leading-tight">
-                            ${vals.reps}<span class="text-xs font-sans text-primary-container ml-0.5">reps</span>
+                            ${vals.reps}<span class="text-xs font-sans text-primary-container ml-0.5">${sub.mode === 'seg' ? 's' : sub.mode === 'c_lado' ? 'c/l' : 'r'}</span>
                           </div>
                           <div class="flex justify-center gap-1 mt-1">
-                            <button data-action="super-reps" data-sub-idx="${sIdx}" data-delta="-1" class="btn-adjust w-7 h-7 rounded bg-surface-container border text-[10px] font-black active:scale-90">-</button>
-                            <button data-action="super-reps" data-sub-idx="${sIdx}" data-delta="1" class="btn-adjust w-7 h-7 rounded bg-surface-container border text-[10px] font-black text-primary-container active:scale-90">+</button>
+                            <button data-action="super-reps" data-sub-idx="${sIdx}" data-delta="${sub.mode === 'seg' ? -5 : -1}" class="btn-adjust w-7 h-7 rounded bg-surface-container border text-[10px] font-black active:scale-90">${sub.mode === 'seg' ? '-5' : '-'}</button>
+                            <button data-action="super-reps" data-sub-idx="${sIdx}" data-delta="${sub.mode === 'seg' ? 5 : 1}" class="btn-adjust w-7 h-7 rounded bg-surface-container border text-[10px] font-black text-primary-container active:scale-90">${sub.mode === 'seg' ? '+5' : '+'}</button>
                           </div>
                         </div>
                       </div>
@@ -695,22 +710,26 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
                   </div>
                 </div>
 
-                <!-- Reps Adjuster (min-h-[160px] shrink-0) -->
+                <!-- Reps / Segundos / C/lado Adjuster (min-h-[160px] shrink-0) -->
                 <div class="bg-surface-container-low rounded-xl p-3 border border-outline-variant flex flex-col justify-between min-h-[160px] shrink-0">
                   <div class="flex items-center justify-between shrink-0">
-                    <span class="text-[10px] font-bold tracking-wider uppercase text-on-surface-variant">REPETICIONES</span>
-                    <span class="text-[9px] text-outline font-mono">Realizadas</span>
+                    <span class="text-[10px] font-bold tracking-wider uppercase text-on-surface-variant">
+                      ${curEx.mode === 'seg' ? 'TIEMPO' : curEx.mode === 'c_lado' ? 'CADA LADO' : 'REPETICIONES'}
+                    </span>
+                    <span class="text-[9px] text-primary-dim font-bold uppercase">
+                      ${curEx.mode === 'seg' ? 'Segundos' : curEx.mode === 'c_lado' ? 'Por perfil' : 'Realizadas'}
+                    </span>
                   </div>
 
                   <div class="text-center my-2 shrink-0">
                     <div id="ui-single-reps" class="font-headline font-black text-3xl text-primary tracking-tight leading-none tabular-nums">
-                      ${currentSingleReps}<span class="text-sm text-primary-container font-sans font-bold ml-1">reps</span>
+                      ${currentSingleReps}<span class="text-sm text-primary-container font-sans font-bold ml-1">${curEx.mode === 'seg' ? 'seg' : curEx.mode === 'c_lado' ? 'c/lado' : 'reps'}</span>
                     </div>
                   </div>
 
                   <div class="grid grid-cols-2 gap-1.5 shrink-0">
-                    <button data-action="single-reps" data-delta="-1" class="btn-adjust h-9 rounded-lg bg-surface-container-high border border-outline-variant active:border-primary-container text-on-surface text-sm font-headline font-black flex items-center justify-center active:scale-95">-1</button>
-                    <button data-action="single-reps" data-delta="1" class="btn-adjust h-9 rounded-lg bg-surface-container-high border border-outline-variant active:border-primary-container text-on-surface text-sm font-headline font-black flex items-center justify-center active:scale-95">+1</button>
+                    <button data-action="single-reps" data-delta="${curEx.mode === 'seg' ? -5 : -1}" class="btn-adjust h-9 rounded-lg bg-surface-container-high border border-outline-variant active:border-primary-container text-on-surface text-sm font-headline font-black flex items-center justify-center active:scale-95">${curEx.mode === 'seg' ? '-5s' : '-1'}</button>
+                    <button data-action="single-reps" data-delta="${curEx.mode === 'seg' ? 5 : 1}" class="btn-adjust h-9 rounded-lg bg-surface-container-high border border-outline-variant active:border-primary-container text-on-surface text-sm font-headline font-black flex items-center justify-center active:scale-95">${curEx.mode === 'seg' ? '+5s' : '+1'}</button>
                   </div>
                 </div>
               </div>
@@ -755,7 +774,7 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
                         ${s.subExercises.map((sub, i) => `
                           <div class="flex items-center justify-between text-on-surface pl-2 border-l-2 border-primary-container/50">
                             <span class="font-medium text-xs truncate max-w-[190px]">${i + 1}. ${sub.name}</span>
-                            <span class="font-headline font-black text-xs text-primary tabular-nums">${sub.weight} kg × ${sub.reps} reps</span>
+                            <span class="font-headline font-black text-xs text-primary tabular-nums">${sub.weight > 0 ? `${sub.weight} kg × ` : ''}${sub.reps} ${sub.mode === 'c_lado' ? 'c/lado' : sub.mode === 'seg' ? 'seg' : 'reps'}</span>
                           </div>
                         `).join('')}
                       </div>
@@ -773,7 +792,7 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
                     ` : `
                       <div class="flex items-center justify-between text-on-surface pt-0.5">
                         <span class="font-medium text-xs">${curEx.name}</span>
-                        <span class="font-headline font-black text-xs text-primary tabular-nums">${s.weight} kg × ${s.reps} reps</span>
+                        <span class="font-headline font-black text-xs text-primary tabular-nums">${s.weight > 0 ? `${s.weight} kg × ` : ''}${s.reps} ${s.mode === 'c_lado' ? 'c/lado' : s.mode === 'seg' ? 'seg' : 'reps'}</span>
                       </div>
                     `}
                   </div>
@@ -899,9 +918,11 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
           const el = document.getElementById('ui-single-weight');
           if (el) el.innerHTML = `${currentSingleWeight}<span class="text-sm text-primary-container font-sans font-bold ml-1">kg</span>`;
         } else if (action === 'single-reps') {
-          currentSingleReps = Math.max(1, Math.min(100, currentSingleReps + delta));
+          const maxVal = curEx.mode === 'seg' ? 600 : 100;
+          currentSingleReps = Math.max(1, Math.min(maxVal, currentSingleReps + delta));
           const el = document.getElementById('ui-single-reps');
-          if (el) el.innerHTML = `${currentSingleReps}<span class="text-sm text-primary-container font-sans font-bold ml-1">reps</span>`;
+          const unit = curEx.mode === 'seg' ? 'seg' : curEx.mode === 'c_lado' ? 'c/lado' : 'reps';
+          if (el) el.innerHTML = `${currentSingleReps}<span class="text-sm text-primary-container font-sans font-bold ml-1">${unit}</span>`;
         } else if (action === 'super-weight') {
           const sIdx = parseInt(btn.getAttribute('data-sub-idx'));
           if (currentSupersetValues[sIdx]) {
@@ -911,10 +932,13 @@ export function renderGymLiveTracker(container, navigate, params = {}) {
           }
         } else if (action === 'super-reps') {
           const sIdx = parseInt(btn.getAttribute('data-sub-idx'));
+          const sub = curEx.subExercises?.[sIdx];
+          const maxVal = sub?.mode === 'seg' ? 600 : 100;
           if (currentSupersetValues[sIdx]) {
-            currentSupersetValues[sIdx].reps = Math.max(1, Math.min(100, currentSupersetValues[sIdx].reps + delta));
+            currentSupersetValues[sIdx].reps = Math.max(1, Math.min(maxVal, currentSupersetValues[sIdx].reps + delta));
             const el = document.getElementById(`ui-super-reps-${sIdx}`);
-            if (el) el.innerHTML = `${currentSupersetValues[sIdx].reps}<span class="text-xs font-sans text-primary-container ml-0.5">reps</span>`;
+            const unit = sub?.mode === 'seg' ? 's' : sub?.mode === 'c_lado' ? 'c/l' : 'reps';
+            if (el) el.innerHTML = `${currentSupersetValues[sIdx].reps}<span class="text-xs font-sans text-primary-container ml-0.5">${unit}</span>`;
           }
         }
       });

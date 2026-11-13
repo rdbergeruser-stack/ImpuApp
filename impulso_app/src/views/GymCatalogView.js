@@ -67,7 +67,7 @@ export function renderGymCatalog(container, navigate) {
               <div class="flex justify-between items-center text-on-surface-variant">
                 <span class="font-medium truncate max-w-[220px]">• ${e.name}</span>
                 <span class="text-[11px] font-bold ${e.isTabata ? 'text-amber-400' : 'text-on-surface'} shrink-0">
-                  ${e.isTabata ? '⏱️ Tabata' : `${e.targetSets}x${e.targetReps}`}
+                  ${e.isTabata ? '⏱️ Tabata' : `${e.targetSets}x${e.targetReps}${e.mode === 'c_lado' ? ' c/l' : e.mode === 'seg' ? 's' : ''}`}
                 </span>
               </div>
             `).join('')}

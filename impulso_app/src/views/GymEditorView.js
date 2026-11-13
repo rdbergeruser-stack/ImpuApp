@@ -47,16 +47,23 @@ export function renderGymEditor(container, navigate, params = {}) {
             id: (ex.id || 'ex') + '-sub-1',
             name: ex.name || 'Primer Ejercicio',
             defaultWeight: typeof ex.defaultWeight === 'number' ? ex.defaultWeight : 40,
-            targetReps: ex.targetReps || '10'
+            targetReps: ex.targetReps || '10',
+            mode: ex.mode || 'reps'
           },
           {
             id: (ex.id || 'ex') + '-sub-2',
             name: ex.supersetName || 'Segundo Ejercicio',
             defaultWeight: typeof ex.supersetWeight === 'number' ? ex.supersetWeight : 16,
-            targetReps: ex.supersetReps || '12'
+            targetReps: ex.supersetReps || '12',
+            mode: 'reps'
           }
         ];
       }
+      ex.subExercises.forEach(sub => {
+        sub.mode = sub.mode || 'reps';
+      });
+    } else {
+      ex.mode = ex.mode || 'reps';
     }
     return ex;
   }
@@ -314,14 +321,32 @@ export function renderGymEditor(container, navigate, params = {}) {
                           <input data-field="sub-name" data-block-idx="${idx}" data-sub-idx="${subIdx}" type="text" value="${subEx.name || ''}" placeholder="Ej. Ejercicio ${subIdx + 1}" class="sub-ex-input w-full h-10 px-3 bg-surface-container-high rounded-xl border border-outline-variant text-on-surface text-xs font-bold focus:outline-none focus:border-primary-container" />
                         </div>
 
+                        <!-- Modalidad Sub-ejercicio -->
+                        <div class="flex flex-col gap-1">
+                          <label class="text-[9px] text-on-surface-variant uppercase font-bold">Tipo de Medición</label>
+                          <div class="grid grid-cols-3 gap-1 bg-surface-container-high p-0.5 rounded-lg border border-outline-variant/40">
+                            <button type="button" data-set-sub-mode="reps" data-block-idx="${idx}" data-sub-idx="${subIdx}" class="btn-sub-mode-toggle h-6 rounded text-[9px] font-headline font-black uppercase flex items-center justify-center transition-all ${(!subEx.mode || subEx.mode === 'reps') ? 'bg-primary-container text-on-primary-container shadow-sm' : 'text-on-surface-variant hover:text-white'}">
+                              Reps
+                            </button>
+                            <button type="button" data-set-sub-mode="c_lado" data-block-idx="${idx}" data-sub-idx="${subIdx}" class="btn-sub-mode-toggle h-6 rounded text-[9px] font-headline font-black uppercase flex items-center justify-center transition-all ${subEx.mode === 'c_lado' ? 'bg-primary-container text-on-primary-container shadow-sm' : 'text-on-surface-variant hover:text-white'}">
+                              c/lado
+                            </button>
+                            <button type="button" data-set-sub-mode="seg" data-block-idx="${idx}" data-sub-idx="${subIdx}" class="btn-sub-mode-toggle h-6 rounded text-[9px] font-headline font-black uppercase flex items-center justify-center transition-all ${subEx.mode === 'seg' ? 'bg-primary-container text-on-primary-container shadow-sm' : 'text-on-surface-variant hover:text-white'}">
+                              Segundos
+                            </button>
+                          </div>
+                        </div>
+
                         <div class="grid grid-cols-2 gap-2">
                           <div>
                             <label class="text-[9px] text-on-surface-variant uppercase font-bold block mb-0.5">Carga Base (kg)</label>
                             <input data-field="sub-weight" data-block-idx="${idx}" data-sub-idx="${subIdx}" type="number" step="0.5" value="${subEx.defaultWeight || 20}" class="sub-ex-input w-full h-9 px-2 bg-surface-container-high rounded-xl border border-outline-variant text-primary font-headline text-xs font-black text-center focus:outline-none focus:border-primary-container" />
                           </div>
                           <div>
-                            <label class="text-[9px] text-on-surface-variant uppercase font-bold block mb-0.5">Reps Objetivo</label>
-                            <input data-field="sub-reps" data-block-idx="${idx}" data-sub-idx="${subIdx}" type="text" value="${subEx.targetReps || '10-12'}" placeholder="Ej. 10-12" class="sub-ex-input w-full h-9 px-2 bg-surface-container-high rounded-xl border border-outline-variant text-primary font-headline text-xs font-black text-center focus:outline-none focus:border-primary-container" />
+                            <label class="text-[9px] text-on-surface-variant uppercase font-bold block mb-0.5">
+                              ${subEx.mode === 'seg' ? 'Segundos Meta' : subEx.mode === 'c_lado' ? 'Meta c/lado' : 'Reps Objetivo'}
+                            </label>
+                            <input data-field="sub-reps" data-block-idx="${idx}" data-sub-idx="${subIdx}" type="text" value="${subEx.targetReps || (subEx.mode === 'seg' ? '30' : '10-12')}" placeholder="${subEx.mode === 'seg' ? 'Ej. 30 o 45' : subEx.mode === 'c_lado' ? 'Ej. 10' : 'Ej. 10-12'}" class="sub-ex-input w-full h-9 px-2 bg-surface-container-high rounded-xl border border-outline-variant text-primary font-headline text-xs font-black text-center focus:outline-none focus:border-primary-container" />
                           </div>
                         </div>
                       </div>
@@ -349,14 +374,32 @@ export function renderGymEditor(container, navigate, params = {}) {
                     <input data-field="name" data-idx="${idx}" type="text" value="${ex.name}" class="ex-input w-full h-10 px-3 bg-surface-container-high rounded-xl border border-outline-variant text-on-surface text-xs font-bold focus:outline-none focus:border-primary-container" />
                   </div>
 
+                  <!-- Modalidad de Medición -->
+                  <div class="flex flex-col gap-1">
+                    <label class="text-[9px] text-on-surface-variant uppercase font-bold">Tipo de Medición</label>
+                    <div class="grid grid-cols-3 gap-1.5 bg-surface-container-high p-1 rounded-xl border border-outline-variant/40">
+                      <button type="button" data-set-mode="reps" data-idx="${idx}" class="btn-mode-toggle h-7 rounded-lg text-[10px] font-headline font-black uppercase flex items-center justify-center transition-all ${(!ex.mode || ex.mode === 'reps') ? 'bg-primary-container text-on-primary-container shadow-sm' : 'text-on-surface-variant hover:text-white'}">
+                        Reps
+                      </button>
+                      <button type="button" data-set-mode="c_lado" data-idx="${idx}" class="btn-mode-toggle h-7 rounded-lg text-[10px] font-headline font-black uppercase flex items-center justify-center transition-all ${ex.mode === 'c_lado' ? 'bg-primary-container text-on-primary-container shadow-sm' : 'text-on-surface-variant hover:text-white'}">
+                        c / lado
+                      </button>
+                      <button type="button" data-set-mode="seg" data-idx="${idx}" class="btn-mode-toggle h-7 rounded-lg text-[10px] font-headline font-black uppercase flex items-center justify-center transition-all ${ex.mode === 'seg' ? 'bg-primary-container text-on-primary-container shadow-sm' : 'text-on-surface-variant hover:text-white'}">
+                        Segundos
+                      </button>
+                    </div>
+                  </div>
+
                   <div class="grid grid-cols-2 gap-2">
                     <div>
                       <label class="text-[9px] text-on-surface-variant uppercase font-bold block mb-0.5">Carga Base (kg)</label>
                       <input data-field="defaultWeight" data-idx="${idx}" type="number" step="0.5" value="${ex.defaultWeight || 50}" class="ex-input w-full h-9 px-2 bg-surface-container-high rounded-xl border border-outline-variant text-primary font-headline text-xs font-black text-center focus:outline-none focus:border-primary-container" />
                     </div>
                     <div>
-                      <label class="text-[9px] text-on-surface-variant uppercase font-bold block mb-0.5">Reps Meta</label>
-                      <input data-field="targetReps" data-idx="${idx}" type="text" value="${ex.targetReps}" class="ex-input w-full h-9 px-2 bg-surface-container-high rounded-xl border border-outline-variant text-primary font-headline text-xs font-black text-center focus:outline-none focus:border-primary-container" />
+                      <label class="text-[9px] text-on-surface-variant uppercase font-bold block mb-0.5">
+                        ${ex.mode === 'seg' ? 'Segundos Meta' : ex.mode === 'c_lado' ? 'Meta c/lado' : 'Reps Meta'}
+                      </label>
+                      <input data-field="targetReps" data-idx="${idx}" type="text" value="${ex.targetReps || (ex.mode === 'seg' ? '30' : '10-12')}" placeholder="${ex.mode === 'seg' ? 'Ej. 30 o 45' : ex.mode === 'c_lado' ? 'Ej. 10' : 'Ej. 10-12'}" class="ex-input w-full h-9 px-2 bg-surface-container-high rounded-xl border border-outline-variant text-primary font-headline text-xs font-black text-center focus:outline-none focus:border-primary-container" />
                     </div>
                   </div>
                 `}
@@ -460,6 +503,43 @@ export function renderGymEditor(container, navigate, params = {}) {
             ex.subExercises[subIdx].targetReps = input.value.trim() || '10';
             if (subIdx === 0) ex.targetReps = ex.subExercises[0].targetReps;
           }
+        }
+      });
+    });
+
+    // Toggle modalidad de medición en ejercicio individual
+    container.querySelectorAll('[data-set-mode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        hapticTap();
+        syncInputs();
+        const idx = parseInt(btn.getAttribute('data-idx'));
+        const mode = btn.getAttribute('data-set-mode');
+        if (routine.exercises[idx]) {
+          routine.exercises[idx].mode = mode;
+          if (mode === 'seg' && (!routine.exercises[idx].targetReps || routine.exercises[idx].targetReps === '10' || routine.exercises[idx].targetReps === '10-12')) {
+            routine.exercises[idx].targetReps = '30';
+          }
+          render();
+        }
+      });
+    });
+
+    // Toggle modalidad de medición en sub-ejercicio de súper serie
+    container.querySelectorAll('[data-set-sub-mode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        hapticTap();
+        syncInputs();
+        const blockIdx = parseInt(btn.getAttribute('data-block-idx'));
+        const subIdx = parseInt(btn.getAttribute('data-sub-idx'));
+        const mode = btn.getAttribute('data-set-sub-mode');
+        const ex = routine.exercises[blockIdx];
+        if (ex && ex.subExercises && ex.subExercises[subIdx]) {
+          ex.subExercises[subIdx].mode = mode;
+          if (subIdx === 0) ex.mode = mode;
+          if (mode === 'seg' && (!ex.subExercises[subIdx].targetReps || ex.subExercises[subIdx].targetReps === '10' || ex.subExercises[subIdx].targetReps === '10-12')) {
+            ex.subExercises[subIdx].targetReps = '30';
+          }
+          render();
         }
       });
     });

@@ -217,6 +217,28 @@ export const DEFAULT_GYM_ROUTINES = [
         restSeconds: 45,
         muscle: 'Gemelos',
         notes: 'Pausa de 2 segundos arriba en contracción máxima'
+      },
+      {
+        id: 'e9-b',
+        name: 'Sentadilla Búlgara con Mancuernas',
+        targetSets: 3,
+        targetReps: '10',
+        mode: 'c_lado',
+        defaultWeight: 14,
+        restSeconds: 75,
+        muscle: 'Cuádriceps / Glúteos',
+        notes: '10 repeticiones completas por cada pierna'
+      },
+      {
+        id: 'e9-c',
+        name: 'Plancha Abdominal Isométrica',
+        targetSets: 3,
+        targetReps: '45',
+        mode: 'seg',
+        defaultWeight: 0,
+        restSeconds: 60,
+        muscle: 'Core / Abdomen',
+        notes: 'Mantener tensión sostenida durante 45 segundos'
       }
     ]
   },
