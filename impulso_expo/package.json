@@ -23,6 +23,13 @@
     "web": "expo start --web"
   },
   "private": true,
+  "expo": {
+    "install": {
+      "exclude": [
+        "expo"
+      ]
+    }
+  },
   "devDependencies": {
     "@expo/env": "^2.5.4",
     "expo-doctor": "1.21.6"
