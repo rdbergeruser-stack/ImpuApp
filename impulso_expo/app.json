@@ -35,6 +35,14 @@
             "com.rdberger.impuapp"
           ]
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
       ]
     ]
   }
