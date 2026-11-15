@@ -8,6 +8,14 @@ import * as Speech from 'expo-speech';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_HTML } from './appHtml.js';
 
+// Importación condicional segura de Health Connect (solo activa en builds nativos)
+let HealthConnect = null;
+try {
+  HealthConnect = require('react-native-health-connect');
+} catch (e) {
+  console.log('HealthConnect native module not present (Expo Go mode)');
+}
+
 // Silenciar warnings de consola en la pantalla de Expo Go
 LogBox.ignoreAllLogs(true);
 
@@ -326,7 +334,218 @@ export default function App() {
         } catch (err) {}
       }
 
-      // 5. CONSOLE ERRORS
+      // 5. HEALTH CONNECT / XIAOMI SMART BAND INTEGRATION
+      else if (data.type === 'HEALTH_CONNECT_INIT_OR_CHECK') {
+        (async () => {
+          try {
+            if (!HealthConnect) {
+              webViewRef.current?.injectJavaScript(`
+                window.dispatchEvent(new CustomEvent('healthConnectStatus', {
+                  detail: { available: false, reason: 'NATIVE_MODULE_NOT_LOADED' }
+                }));
+              `);
+              return;
+            }
+
+            const isAvailable = await HealthConnect.isAvailable();
+            if (!isAvailable) {
+              webViewRef.current?.injectJavaScript(`
+                window.dispatchEvent(new CustomEvent('healthConnectStatus', {
+                  detail: { available: false, reason: 'HEALTH_CONNECT_NOT_INSTALLED' }
+                }));
+              `);
+              return;
+            }
+
+            const initialized = await HealthConnect.initialize();
+            webViewRef.current?.injectJavaScript(`
+              window.dispatchEvent(new CustomEvent('healthConnectStatus', {
+                detail: { available: true, initialized: ${!!initialized} }
+              }));
+            `);
+          } catch (err) {
+            console.warn('HealthConnect init check error:', err);
+          }
+        })();
+      }
+
+      else if (data.type === 'HEALTH_CONNECT_REQUEST_PERMISSIONS') {
+        (async () => {
+          try {
+            if (!HealthConnect) return;
+            const granted = await HealthConnect.requestPermission([
+              { accessType: 'read', recordType: 'Steps' },
+              { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
+              { accessType: 'read', recordType: 'TotalCaloriesBurned' },
+              { accessType: 'read', recordType: 'HeartRate' },
+              { accessType: 'read', recordType: 'ExerciseSession' }
+            ]);
+
+            webViewRef.current?.injectJavaScript(`
+              window.dispatchEvent(new CustomEvent('healthConnectPermissionsResponse', {
+                detail: { success: true, granted: ${JSON.stringify(granted)} }
+              }));
+            `);
+          } catch (err) {
+            console.warn('HealthConnect request permission error:', err);
+            webViewRef.current?.injectJavaScript(`
+              window.dispatchEvent(new CustomEvent('healthConnectPermissionsResponse', {
+                detail: { success: false, error: ${JSON.stringify(err.message || String(err))} }
+              }));
+            `);
+          }
+        })();
+      }
+
+      else if (data.type === 'HEALTH_CONNECT_GET_TODAY_STATS') {
+        (async () => {
+          try {
+            if (!HealthConnect) return;
+            const now = new Date();
+            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
+            const endOfDay = now.toISOString();
+
+            // 1. Leer pasos de hoy
+            let steps = 0;
+            try {
+              const stepsRes = await HealthConnect.readRecords('Steps', {
+                timeRangeFilter: { operator: 'between', startTime: startOfDay, endTime: endOfDay }
+              });
+              if (stepsRes && stepsRes.records) {
+                steps = stepsRes.records.reduce((acc, r) => acc + (r.count || 0), 0);
+              }
+            } catch (e) {
+              console.log('Error reading steps:', e);
+            }
+
+            // 2. Leer calorías activas quemadas hoy
+            let calories = 0;
+            try {
+              const calRes = await HealthConnect.readRecords('ActiveCaloriesBurned', {
+                timeRangeFilter: { operator: 'between', startTime: startOfDay, endTime: endOfDay }
+              });
+              if (calRes && calRes.records) {
+                calories = Math.round(calRes.records.reduce((acc, r) => acc + ((r.energy && r.energy.inKilocalories) || 0), 0));
+              }
+            } catch (e) {
+              console.log('Error reading calories:', e);
+            }
+
+            // 3. Leer último pulso o promedio de hoy
+            let latestBpm = null;
+            let avgBpm = null;
+            try {
+              const hrRes = await HealthConnect.readRecords('HeartRate', {
+                timeRangeFilter: { operator: 'between', startTime: startOfDay, endTime: endOfDay }
+              });
+              if (hrRes && hrRes.records && hrRes.records.length > 0) {
+                let totalSamples = 0;
+                let sumBpm = 0;
+                hrRes.records.forEach(r => {
+                  if (r.samples && r.samples.length > 0) {
+                    r.samples.forEach(s => {
+                      if (s.beatsPerMinute) {
+                        sumBpm += s.beatsPerMinute;
+                        totalSamples++;
+                        latestBpm = s.beatsPerMinute; // Ultima muestra
+                      }
+                    });
+                  }
+                });
+                if (totalSamples > 0) {
+                  avgBpm = Math.round(sumBpm / totalSamples);
+                }
+              }
+            } catch (e) {
+              console.log('Error reading HR:', e);
+            }
+
+            webViewRef.current?.injectJavaScript(`
+              window.dispatchEvent(new CustomEvent('healthConnectTodayStats', {
+                detail: {
+                  steps: ${steps},
+                  calories: ${calories},
+                  latestBpm: ${latestBpm || 'null'},
+                  avgBpm: ${avgBpm || 'null'},
+                  updatedAt: ${Date.now()}
+                }
+              }));
+            `);
+          } catch (err) {
+            console.warn('HealthConnect get today stats error:', err);
+          }
+        })();
+      }
+
+      else if (data.type === 'HEALTH_CONNECT_GET_SESSION_TELEMETRY') {
+        (async () => {
+          try {
+            if (!HealthConnect) return;
+            const startTime = data.startTime ? new Date(data.startTime).toISOString() : new Date(Date.now() - 3600000).toISOString();
+            const endTime = data.endTime ? new Date(data.endTime).toISOString() : new Date().toISOString();
+
+            let avgBpm = null;
+            let maxBpm = null;
+            let samples = [];
+            let calories = 0;
+
+            // Leer ritmo cardíaco de la sesión
+            try {
+              const hrRes = await HealthConnect.readRecords('HeartRate', {
+                timeRangeFilter: { operator: 'between', startTime, endTime }
+              });
+              if (hrRes && hrRes.records && hrRes.records.length > 0) {
+                let sum = 0;
+                let count = 0;
+                hrRes.records.forEach(rec => {
+                  if (rec.samples) {
+                    rec.samples.forEach(s => {
+                      if (s.beatsPerMinute) {
+                        const bpm = s.beatsPerMinute;
+                        sum += bpm;
+                        count++;
+                        if (maxBpm === null || bpm > maxBpm) maxBpm = bpm;
+                        samples.push({ bpm, time: s.time });
+                      }
+                    });
+                  }
+                });
+                if (count > 0) {
+                  avgBpm = Math.round(sum / count);
+                }
+              }
+            } catch (e) {
+              console.log('Error reading session HR:', e);
+            }
+
+            // Leer calorías reales de la sesión
+            try {
+              const calRes = await HealthConnect.readRecords('ActiveCaloriesBurned', {
+                timeRangeFilter: { operator: 'between', startTime, endTime }
+              });
+              if (calRes && calRes.records) {
+                calories = Math.round(calRes.records.reduce((acc, r) => acc + ((r.energy && r.energy.inKilocalories) || 0), 0));
+              }
+            } catch (e) {}
+
+            webViewRef.current?.injectJavaScript(`
+              window.dispatchEvent(new CustomEvent('healthConnectSessionTelemetryResponse', {
+                detail: {
+                  sessionId: ${JSON.stringify(data.sessionId || '')},
+                  avgBpm: ${avgBpm || 'null'},
+                  maxBpm: ${maxBpm || 'null'},
+                  calories: ${calories || 0},
+                  samplesCount: ${samples.length}
+                }
+              }));
+            `);
+          } catch (err) {
+            console.warn('HealthConnect get session telemetry error:', err);
+          }
+        })();
+      }
+
+      // 6. CONSOLE ERRORS
       else if (data.type === 'LOG_ERROR') {
         console.warn('WebApp Error:', data.message);
       }

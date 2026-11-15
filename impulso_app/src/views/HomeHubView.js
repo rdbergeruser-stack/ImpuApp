@@ -9,6 +9,19 @@ export function renderHomeHub(container, navigate) {
   const settings = storage.getSettings();
   const history = storage.getHistory();
   const lastWorkout = history.length > 0 ? history[0] : null;
+  let bandStats = storage.getSmartBandStats();
+
+  // Solicitar refresco de telemetría nativa a Health Connect si está disponible
+  if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+    try {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'HEALTH_CONNECT_GET_TODAY_STATS'
+      }));
+    } catch (e) {}
+  }
+
+  const stepsGoal = 10000;
+  const stepsPercent = Math.min(100, Math.round(((bandStats.steps || 0) / stepsGoal) * 100));
 
   const html = `
     <div class="w-full h-full flex flex-col justify-between overflow-hidden bg-background select-none">
@@ -38,6 +51,65 @@ export function renderHomeHub(container, navigate) {
               <span class="text-[11px] uppercase text-primary-container font-black tracking-widest font-headline">
                 RACHA: ${settings.athleteStreakDays ?? 0} DÍAS
               </span>
+            </div>
+          </div>
+
+          <!-- Xiaomi Smart Band 9 Telemetry Widget -->
+          <div class="rounded-2xl bg-surface-container border border-outline-variant p-3.5 flex flex-col gap-2.5 relative overflow-hidden shadow-sm">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-lg bg-surface-container-high border border-outline-variant flex items-center justify-center text-primary-container">
+                  <span class="material-symbols-outlined text-[18px]">watch</span>
+                </div>
+                <div>
+                  <span class="font-headline text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5 leading-none">
+                    XIAOMI SMART BAND 9
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
+                  </span>
+                  <span class="text-[10px] text-on-surface-variant font-medium">Sincronizado vía Health Connect</span>
+                </div>
+              </div>
+              <button id="btn-sync-band" class="p-1.5 rounded-lg bg-surface-container-high border border-outline-variant text-on-surface-variant hover:text-primary-container active:scale-95 transition-all" title="Sincronizar ahora">
+                <span class="material-symbols-outlined text-base">sync</span>
+              </button>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 pt-1 border-t border-outline-variant/30">
+              <!-- Pasos -->
+              <div class="flex flex-col">
+                <span class="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider flex items-center gap-1">
+                  <span class="material-symbols-outlined text-xs text-primary-container">footprint</span>
+                  Pasos
+                </span>
+                <span id="band-steps-val" class="font-headline text-base font-black text-white tabular-nums">
+                  ${(bandStats.steps || 0).toLocaleString()}
+                </span>
+                <div class="w-full h-1 bg-surface-container-high rounded-full overflow-hidden mt-1">
+                  <div class="h-full bg-primary-container rounded-full" style="width: ${stepsPercent}%"></div>
+                </div>
+              </div>
+
+              <!-- Calorías -->
+              <div class="flex flex-col">
+                <span class="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider flex items-center gap-1">
+                  <span class="material-symbols-outlined text-xs text-amber-400">local_fire_department</span>
+                  Calorías
+                </span>
+                <span id="band-cal-val" class="font-headline text-base font-black text-amber-400 tabular-nums">
+                  ${(bandStats.calories || 0).toLocaleString()} <span class="text-[10px] text-on-surface-variant font-normal">kcal</span>
+                </span>
+              </div>
+
+              <!-- Pulso / BPM -->
+              <div class="flex flex-col">
+                <span class="text-[10px] uppercase font-bold text-on-surface-variant tracking-wider flex items-center gap-1">
+                  <span class="material-symbols-outlined text-xs text-rose-500">favorite</span>
+                  Pulso
+                </span>
+                <span id="band-bpm-val" class="font-headline text-base font-black text-rose-400 tabular-nums">
+                  ${bandStats.latestBpm || bandStats.avgBpm || '--'} <span class="text-[10px] text-on-surface-variant font-normal">BPM</span>
+                </span>
+              </div>
             </div>
           </div>
 
@@ -143,6 +215,48 @@ export function renderHomeHub(container, navigate) {
   `;
 
   setHtmlPreservingScroll(container, html);
+
+  // Sync Band button
+  const syncBtn = document.getElementById('btn-sync-band');
+  syncBtn?.addEventListener('click', () => {
+    hapticTap();
+    syncBtn.classList.add('animate-spin');
+    if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'HEALTH_CONNECT_GET_TODAY_STATS'
+      }));
+    }
+    setTimeout(() => {
+      syncBtn.classList.remove('animate-spin');
+    }, 1200);
+  });
+
+  // Listener para evento custom de actualización de Health Connect
+  const onStatsUpdated = (e) => {
+    const d = e.detail;
+    if (!d) return;
+    const stepsEl = document.getElementById('band-steps-val');
+    const calEl = document.getElementById('band-cal-val');
+    const bpmEl = document.getElementById('band-bpm-val');
+
+    if (stepsEl && typeof d.steps === 'number') stepsEl.textContent = d.steps.toLocaleString();
+    if (calEl && typeof d.calories === 'number') calEl.innerHTML = `${d.calories.toLocaleString()} <span class="text-[10px] text-on-surface-variant font-normal">kcal</span>`;
+    if (bpmEl) {
+      const val = d.latestBpm || d.avgBpm || '--';
+      bpmEl.innerHTML = `${val} <span class="text-[10px] text-on-surface-variant font-normal">BPM</span>`;
+    }
+
+    storage.saveSmartBandStats({
+      connected: true,
+      steps: d.steps || 0,
+      calories: d.calories || 0,
+      latestBpm: d.latestBpm || null,
+      avgBpm: d.avgBpm || null,
+      updatedAt: d.updatedAt || Date.now()
+    });
+  };
+
+  window.addEventListener('healthConnectTodayStats', onStatsUpdated);
 
   // Header settings button
 

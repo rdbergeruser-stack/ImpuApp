@@ -15,7 +15,8 @@ export function renderSummary(container, navigate, params = {}) {
 
   // Asignar telemetría biométrica si aún no está presente
   if (!workout.avgBpm) {
-    workout.avgBpm = workout.type === 'tabata' ? 164 : workout.type === 'runner' ? 156 : 128;
+    const bandStats = storage.getSmartBandStats();
+    workout.avgBpm = bandStats.latestBpm || bandStats.avgBpm || (workout.type === 'tabata' ? 164 : workout.type === 'runner' ? 156 : 128);
     workout.maxBpm = workout.avgBpm + 22;
     workout.recoveryDrop = 32;
     workout.zones = workout.type === 'tabata'
@@ -24,6 +25,20 @@ export function renderSummary(container, navigate, params = {}) {
         ? { z1: 10, z2: 20, z3: 30, z4: 35, z5: 5 }
         : { z1: 25, z2: 35, z3: 25, z4: 15, z5: 0 };
     workout.hasSmartband = true;
+  }
+
+  // Si tenemos ventana de tiempo de inicio y fin, pedir telemetría precisa a Health Connect
+  if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+    try {
+      const endTime = Date.now();
+      const startTime = endTime - ((workout.durationSeconds || 300) * 1000);
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'HEALTH_CONNECT_GET_SESSION_TELEMETRY',
+        startTime,
+        endTime,
+        sessionId: workout.id || ''
+      }));
+    } catch (e) {}
   }
 
   // Automatically save to local history on render

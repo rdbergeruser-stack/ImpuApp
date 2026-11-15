@@ -16,7 +16,8 @@ const KEYS = {
   RUNNER: 'impulso_runner_presets',
   GYM: 'impulso_gym_routines',
   HISTORY: 'impulso_history',
-  WEIGHT_LOGS: 'impulso_weight_logs'
+  WEIGHT_LOGS: 'impulso_weight_logs',
+  SMARTBAND_STATS: 'impulso_smartband_stats'
 };
 
 class StorageService {
@@ -27,7 +28,8 @@ class StorageService {
       runner: null,
       gym: null,
       history: null,
-      weightLogs: null
+      weightLogs: null,
+      smartbandStats: null
     };
     this.initDefaults();
   }
@@ -457,6 +459,43 @@ class StorageService {
       const settings = this.getSettings();
       settings.targetWeight = target;
       this.saveSettings(settings);
+    }
+  }
+
+  // Métricas sincronizadas desde Xiaomi Smart Band / Health Connect
+  getSmartBandStats() {
+    if (this._cache.smartbandStats) return this._cache.smartbandStats;
+    try {
+      const raw = localStorage.getItem(KEYS.SMARTBAND_STATS);
+      if (raw) {
+        this._cache.smartbandStats = JSON.parse(raw);
+        return this._cache.smartbandStats;
+      }
+    } catch (e) {}
+    return {
+      connected: false,
+      steps: 0,
+      calories: 0,
+      latestBpm: null,
+      avgBpm: null,
+      updatedAt: null
+    };
+  }
+
+  saveSmartBandStats(stats) {
+    this._cache.smartbandStats = stats;
+    try {
+      localStorage.setItem(KEYS.SMARTBAND_STATS, JSON.stringify(stats));
+    } catch (e) {}
+
+    if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+      try {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'STORAGE_SAVE',
+          key: KEYS.SMARTBAND_STATS,
+          value: JSON.stringify(stats)
+        }));
+      } catch (e) {}
     }
   }
 
