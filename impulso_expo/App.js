@@ -528,14 +528,6 @@ export default function App() {
           }
         })();
       }
-                }
-              }));
-            `);
-          } catch (err) {
-            console.warn('HealthConnect get today stats error:', err);
-          }
-        })();
-      }
 
       else if (data.type === 'HEALTH_CONNECT_GET_SESSION_TELEMETRY') {
         (async () => {
