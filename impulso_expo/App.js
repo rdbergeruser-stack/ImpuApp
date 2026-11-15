@@ -373,6 +373,7 @@ export default function App() {
         (async () => {
           try {
             if (!HealthConnect) return;
+            await HealthConnect.initialize();
             const granted = await HealthConnect.requestPermission([
               { accessType: 'read', recordType: 'Steps' },
               { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
@@ -388,6 +389,13 @@ export default function App() {
             `);
           } catch (err) {
             console.warn('HealthConnect request permission error:', err);
+            // Intentar abrir configuración directa de Health Connect si falla el popup nativo
+            try {
+              if (HealthConnect.openHealthConnectSettings) {
+                HealthConnect.openHealthConnectSettings();
+              }
+            } catch (e2) {}
+
             webViewRef.current?.injectJavaScript(`
               window.dispatchEvent(new CustomEvent('healthConnectPermissionsResponse', {
                 detail: { success: false, error: ${JSON.stringify(err.message || String(err))} }
@@ -397,35 +405,79 @@ export default function App() {
         })();
       }
 
+      else if (data.type === 'HEALTH_CONNECT_OPEN_SETTINGS') {
+        try {
+          if (HealthConnect && HealthConnect.openHealthConnectSettings) {
+            HealthConnect.openHealthConnectSettings();
+          }
+        } catch (e) {
+          console.warn('Error opening Health Connect settings:', e);
+        }
+      }
+
       else if (data.type === 'HEALTH_CONNECT_GET_TODAY_STATS') {
         (async () => {
           try {
             if (!HealthConnect) return;
+            await HealthConnect.initialize();
+
+            // Si aún no tenemos permisos, solicitarlos automáticamente
+            try {
+              const currentGranted = await HealthConnect.getGrantedPermissions();
+              if (!currentGranted || currentGranted.length === 0) {
+                await HealthConnect.requestPermission([
+                  { accessType: 'read', recordType: 'Steps' },
+                  { accessType: 'read', recordType: 'ActiveCaloriesBurned' },
+                  { accessType: 'read', recordType: 'TotalCaloriesBurned' },
+                  { accessType: 'read', recordType: 'HeartRate' }
+                ]);
+              }
+            } catch (permErr) {
+              console.log('Permission check notice:', permErr);
+            }
+
             const now = new Date();
             const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
             const endOfDay = now.toISOString();
 
-            // 1. Leer pasos de hoy
+            // 1. Leer pasos de hoy (con fallback de agregación)
             let steps = 0;
             try {
-              const stepsRes = await HealthConnect.readRecords('Steps', {
-                timeRangeFilter: { operator: 'between', startTime: startOfDay, endTime: endOfDay }
-              });
-              if (stepsRes && stepsRes.records) {
-                steps = stepsRes.records.reduce((acc, r) => acc + (r.count || 0), 0);
+              if (HealthConnect.aggregateRecord) {
+                const agg = await HealthConnect.aggregateRecord({
+                  recordType: 'Steps',
+                  timeRangeFilter: { operator: 'between', startTime: startOfDay, endTime: endOfDay }
+                });
+                if (agg && typeof agg.COUNT === 'number') steps = agg.COUNT;
+              }
+              if (steps === 0) {
+                const stepsRes = await HealthConnect.readRecords('Steps', {
+                  timeRangeFilter: { operator: 'between', startTime: startOfDay, endTime: endOfDay }
+                });
+                if (stepsRes && stepsRes.records) {
+                  steps = stepsRes.records.reduce((acc, r) => acc + (r.count || 0), 0);
+                }
               }
             } catch (e) {
               console.log('Error reading steps:', e);
             }
 
-            // 2. Leer calorías activas quemadas hoy
+            // 2. Leer calorías de hoy (Active o Total)
             let calories = 0;
             try {
               const calRes = await HealthConnect.readRecords('ActiveCaloriesBurned', {
                 timeRangeFilter: { operator: 'between', startTime: startOfDay, endTime: endOfDay }
               });
-              if (calRes && calRes.records) {
+              if (calRes && calRes.records && calRes.records.length > 0) {
                 calories = Math.round(calRes.records.reduce((acc, r) => acc + ((r.energy && r.energy.inKilocalories) || 0), 0));
+              } else {
+                // Probar con TotalCaloriesBurned
+                const totRes = await HealthConnect.readRecords('TotalCaloriesBurned', {
+                  timeRangeFilter: { operator: 'between', startTime: startOfDay, endTime: endOfDay }
+                });
+                if (totRes && totRes.records) {
+                  calories = Math.round(totRes.records.reduce((acc, r) => acc + ((r.energy && r.energy.inKilocalories) || 0), 0));
+                }
               }
             } catch (e) {
               console.log('Error reading calories:', e);
@@ -468,6 +520,14 @@ export default function App() {
                   latestBpm: ${latestBpm || 'null'},
                   avgBpm: ${avgBpm || 'null'},
                   updatedAt: ${Date.now()}
+                }
+              }));
+            `);
+          } catch (err) {
+            console.warn('HealthConnect get today stats error:', err);
+          }
+        })();
+      }
                 }
               }));
             `);

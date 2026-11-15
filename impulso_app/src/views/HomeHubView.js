@@ -69,9 +69,14 @@ export function renderHomeHub(container, navigate) {
                   <span class="text-[10px] text-on-surface-variant font-medium">Sincronizado vía Health Connect</span>
                 </div>
               </div>
-              <button id="btn-sync-band" class="p-1.5 rounded-lg bg-surface-container-high border border-outline-variant text-on-surface-variant hover:text-primary-container active:scale-95 transition-all" title="Sincronizar ahora">
-                <span class="material-symbols-outlined text-base">sync</span>
-              </button>
+              <div class="flex items-center gap-1">
+                <button id="btn-sync-band" class="p-1.5 rounded-lg bg-surface-container-high border border-outline-variant text-on-surface-variant hover:text-primary-container active:scale-95 transition-all" title="Sincronizar ahora">
+                  <span class="material-symbols-outlined text-base">sync</span>
+                </button>
+                <button id="btn-health-settings" class="p-1.5 rounded-lg bg-surface-container-high border border-outline-variant text-on-surface-variant hover:text-primary-container active:scale-95 transition-all" title="Permisos de Health Connect">
+                  <span class="material-symbols-outlined text-base">settings</span>
+                </button>
+              </div>
             </div>
 
             <div class="grid grid-cols-3 gap-2 pt-1 border-t border-outline-variant/30">
@@ -229,6 +234,17 @@ export function renderHomeHub(container, navigate) {
     setTimeout(() => {
       syncBtn.classList.remove('animate-spin');
     }, 1200);
+  });
+
+  // Settings Band button (abre la pantalla de permisos de Health Connect)
+  const healthSettingsBtn = document.getElementById('btn-health-settings');
+  healthSettingsBtn?.addEventListener('click', () => {
+    hapticTap();
+    if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'HEALTH_CONNECT_REQUEST_PERMISSIONS'
+      }));
+    }
   });
 
   // Listener para evento custom de actualización de Health Connect
