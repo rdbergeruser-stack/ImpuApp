@@ -66,7 +66,7 @@ export function renderHomeHub(container, navigate) {
                     XIAOMI SMART BAND 9
                     <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
                   </span>
-                  <span class="text-[10px] text-on-surface-variant font-medium">Sincronizado vía Health Connect</span>
+                  <span id="band-sync-subtitle" class="text-[10px] text-on-surface-variant font-medium">Sincronizado con ${bandStats.sourceApp || 'Health Connect'}</span>
                 </div>
               </div>
               <div class="flex items-center gap-1">
@@ -90,7 +90,7 @@ export function renderHomeHub(container, navigate) {
                   ${(bandStats.steps || 0).toLocaleString()}
                 </span>
                 <div class="w-full h-1 bg-surface-container-high rounded-full overflow-hidden mt-1">
-                  <div class="h-full bg-primary-container rounded-full" style="width: ${stepsPercent}%"></div>
+                  <div id="band-steps-bar" class="h-full bg-primary-container rounded-full" style="width: ${stepsPercent}%"></div>
                 </div>
               </div>
 
@@ -254,8 +254,20 @@ export function renderHomeHub(container, navigate) {
     const stepsEl = document.getElementById('band-steps-val');
     const calEl = document.getElementById('band-cal-val');
     const bpmEl = document.getElementById('band-bpm-val');
+    const barEl = document.getElementById('band-steps-bar');
+    const subEl = document.getElementById('band-sync-subtitle');
 
-    if (stepsEl && typeof d.steps === 'number') stepsEl.textContent = d.steps.toLocaleString();
+    if (subEl && d.sourceApp) {
+      subEl.textContent = `Sincronizado con ${d.sourceApp}`;
+    }
+
+    if (stepsEl && typeof d.steps === 'number') {
+      stepsEl.textContent = d.steps.toLocaleString();
+      if (barEl) {
+        const pct = Math.min(100, Math.round((d.steps / 10000) * 100));
+        barEl.style.width = `${pct}%`;
+      }
+    }
     if (calEl && typeof d.calories === 'number') calEl.innerHTML = `${d.calories.toLocaleString()} <span class="text-[10px] text-on-surface-variant font-normal">kcal</span>`;
     if (bpmEl) {
       const val = d.latestBpm || d.avgBpm || '--';
@@ -268,6 +280,7 @@ export function renderHomeHub(container, navigate) {
       calories: d.calories || 0,
       latestBpm: d.latestBpm || null,
       avgBpm: d.avgBpm || null,
+      sourceApp: d.sourceApp || 'Health Connect',
       updatedAt: d.updatedAt || Date.now()
     });
   };

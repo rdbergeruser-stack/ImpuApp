@@ -478,6 +478,7 @@ class StorageService {
       calories: 0,
       latestBpm: null,
       avgBpm: null,
+      sourceApp: 'Health Connect',
       updatedAt: null
     };
   }

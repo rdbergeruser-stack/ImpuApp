@@ -440,43 +440,87 @@ export default function App() {
             const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString();
             const endOfDay = now.toISOString();
 
-            // 1. Leer pasos de hoy (con fallback de agregación)
-            let steps = 0;
-            try {
-              if (HealthConnect.aggregateRecord) {
-                const agg = await HealthConnect.aggregateRecord({
-                  recordType: 'Steps',
-                  timeRangeFilter: { operator: 'between', startTime: startOfDay, endTime: endOfDay }
-                });
-                if (agg && typeof agg.COUNT === 'number') steps = agg.COUNT;
+            // Helpers locales para priorización y desduplicación de fuentes
+            const getSourcePriority = (dataOrigin) => {
+              const o = (dataOrigin || '').toLowerCase();
+              // 1. Xiaomi / Mi Fitness (Smart Band 9 Active, Mi Band, etc.)
+              if (o.includes('mi.health') || o.includes('xiaomi') || o.includes('wearable') || o.includes('zepp')) return 100;
+              // 2. Otras bandas y smartwatches reconocidos
+              if (o.includes('shealth') || o.includes('samsung') || o.includes('garmin') || o.includes('fitbit') || o.includes('polar') || o.includes('whoop') || o.includes('huawei')) return 80;
+              // 3. Google Fit / Servicios del teléfono
+              if (o.includes('fitness') || o.includes('google')) return 50;
+              // 4. Otros
+              return 10;
+            };
+
+            const selectBestRecords = (records) => {
+              if (!records || !Array.isArray(records) || records.length === 0) return { sourceApp: null, records: [] };
+              const byOrigin = {};
+              records.forEach(r => {
+                const origin = (r.metadata && r.metadata.dataOrigin) || 'unknown';
+                if (!byOrigin[origin]) byOrigin[origin] = [];
+                byOrigin[origin].push(r);
+              });
+              const originKeys = Object.keys(byOrigin);
+              if (originKeys.length === 1) {
+                return { sourceApp: originKeys[0], records: byOrigin[originKeys[0]] };
               }
-              if (steps === 0) {
-                const stepsRes = await HealthConnect.readRecords('Steps', {
-                  timeRangeFilter: { operator: 'between', startTime: startOfDay, endTime: endOfDay }
-                });
-                if (stepsRes && stepsRes.records) {
-                  steps = stepsRes.records.reduce((acc, r) => acc + (r.count || 0), 0);
-                }
+              originKeys.sort((a, b) => {
+                const prioDiff = getSourcePriority(b) - getSourcePriority(a);
+                if (prioDiff !== 0) return prioDiff;
+                return byOrigin[b].length - byOrigin[a].length;
+              });
+              const bestOrigin = originKeys[0];
+              return { sourceApp: bestOrigin, records: byOrigin[bestOrigin] };
+            };
+
+            const formatFriendlySourceName = (sourceApp) => {
+              if (!sourceApp) return 'Health Connect';
+              const s = sourceApp.toLowerCase();
+              if (s.includes('mi.health') || s.includes('xiaomi')) return 'Mi Fitness (Xiaomi)';
+              if (s.includes('zepp')) return 'Zepp Life';
+              if (s.includes('shealth') || s.includes('samsung')) return 'Samsung Health';
+              if (s.includes('fitbit')) return 'Fitbit';
+              if (s.includes('garmin')) return 'Garmin';
+              if (s.includes('fitness') || s.includes('google')) return 'Google Fit';
+              return sourceApp;
+            };
+
+            // 1. Leer pasos de hoy desduplicando la fuente para no sumar el podómetro del móvil y la pulsera
+            let steps = 0;
+            let primarySource = null;
+            try {
+              const stepsRes = await HealthConnect.readRecords('Steps', {
+                timeRangeFilter: { operator: 'between', startTime: startOfDay, endTime: endOfDay }
+              });
+              if (stepsRes && stepsRes.records && stepsRes.records.length > 0) {
+                const { sourceApp, records: filteredSteps } = selectBestRecords(stepsRes.records);
+                primarySource = sourceApp;
+                steps = filteredSteps.reduce((acc, r) => acc + (Number(r.count) || 0), 0);
               }
             } catch (e) {
               console.log('Error reading steps:', e);
             }
 
-            // 2. Leer calorías de hoy (Active o Total)
+            // 2. Leer calorías de hoy (Active o Total) con desduplicación
             let calories = 0;
             try {
               const calRes = await HealthConnect.readRecords('ActiveCaloriesBurned', {
                 timeRangeFilter: { operator: 'between', startTime: startOfDay, endTime: endOfDay }
               });
-              if (calRes && calRes.records && calRes.records.length > 0) {
-                calories = Math.round(calRes.records.reduce((acc, r) => acc + ((r.energy && r.energy.inKilocalories) || 0), 0));
+              const { sourceApp: calSource, records: activeRecords } = selectBestRecords(calRes?.records);
+              if (activeRecords.length > 0) {
+                calories = Math.round(activeRecords.reduce((acc, r) => acc + ((r.energy && r.energy.inKilocalories) || 0), 0));
+                if (!primarySource && calSource) primarySource = calSource;
               } else {
                 // Probar con TotalCaloriesBurned
                 const totRes = await HealthConnect.readRecords('TotalCaloriesBurned', {
                   timeRangeFilter: { operator: 'between', startTime: startOfDay, endTime: endOfDay }
                 });
-                if (totRes && totRes.records) {
-                  calories = Math.round(totRes.records.reduce((acc, r) => acc + ((r.energy && r.energy.inKilocalories) || 0), 0));
+                const { sourceApp: totSource, records: totalRecords } = selectBestRecords(totRes?.records);
+                if (totalRecords.length > 0) {
+                  calories = Math.round(totalRecords.reduce((acc, r) => acc + ((r.energy && r.energy.inKilocalories) || 0), 0));
+                  if (!primarySource && totSource) primarySource = totSource;
                 }
               }
             } catch (e) {
@@ -490,16 +534,18 @@ export default function App() {
               const hrRes = await HealthConnect.readRecords('HeartRate', {
                 timeRangeFilter: { operator: 'between', startTime: startOfDay, endTime: endOfDay }
               });
-              if (hrRes && hrRes.records && hrRes.records.length > 0) {
+              const { sourceApp: hrSource, records: hrRecords } = selectBestRecords(hrRes?.records);
+              if (hrRecords.length > 0) {
+                if (!primarySource && hrSource) primarySource = hrSource;
                 let totalSamples = 0;
                 let sumBpm = 0;
-                hrRes.records.forEach(r => {
+                hrRecords.forEach(r => {
                   if (r.samples && r.samples.length > 0) {
                     r.samples.forEach(s => {
                       if (s.beatsPerMinute) {
                         sumBpm += s.beatsPerMinute;
                         totalSamples++;
-                        latestBpm = s.beatsPerMinute; // Ultima muestra
+                        latestBpm = s.beatsPerMinute;
                       }
                     });
                   }
@@ -512,6 +558,8 @@ export default function App() {
               console.log('Error reading HR:', e);
             }
 
+            const friendlySource = formatFriendlySourceName(primarySource);
+
             webViewRef.current?.injectJavaScript(`
               window.dispatchEvent(new CustomEvent('healthConnectTodayStats', {
                 detail: {
@@ -519,6 +567,7 @@ export default function App() {
                   calories: ${calories},
                   latestBpm: ${latestBpm || 'null'},
                   avgBpm: ${avgBpm || 'null'},
+                  sourceApp: ${JSON.stringify(friendlySource)},
                   updatedAt: ${Date.now()}
                 }
               }));
@@ -541,15 +590,38 @@ export default function App() {
             let samples = [];
             let calories = 0;
 
-            // Leer ritmo cardíaco de la sesión
+            const getSourcePriority = (dataOrigin) => {
+              const o = (dataOrigin || '').toLowerCase();
+              if (o.includes('mi.health') || o.includes('xiaomi') || o.includes('wearable') || o.includes('zepp')) return 100;
+              if (o.includes('shealth') || o.includes('samsung') || o.includes('garmin') || o.includes('fitbit') || o.includes('polar') || o.includes('whoop') || o.includes('huawei')) return 80;
+              if (o.includes('fitness') || o.includes('google')) return 50;
+              return 10;
+            };
+
+            const selectBestRecords = (records) => {
+              if (!records || !Array.isArray(records) || records.length === 0) return [];
+              const byOrigin = {};
+              records.forEach(r => {
+                const origin = (r.metadata && r.metadata.dataOrigin) || 'unknown';
+                if (!byOrigin[origin]) byOrigin[origin] = [];
+                byOrigin[origin].push(r);
+              });
+              const originKeys = Object.keys(byOrigin);
+              if (originKeys.length === 1) return byOrigin[originKeys[0]];
+              originKeys.sort((a, b) => (getSourcePriority(b) - getSourcePriority(a)) || (byOrigin[b].length - byOrigin[a].length));
+              return byOrigin[originKeys[0]];
+            };
+
+            // Leer ritmo cardíaco de la sesión con desduplicación
             try {
               const hrRes = await HealthConnect.readRecords('HeartRate', {
                 timeRangeFilter: { operator: 'between', startTime, endTime }
               });
-              if (hrRes && hrRes.records && hrRes.records.length > 0) {
+              const hrRecords = selectBestRecords(hrRes?.records);
+              if (hrRecords.length > 0) {
                 let sum = 0;
                 let count = 0;
-                hrRes.records.forEach(rec => {
+                hrRecords.forEach(rec => {
                   if (rec.samples) {
                     rec.samples.forEach(s => {
                       if (s.beatsPerMinute) {
@@ -570,13 +642,14 @@ export default function App() {
               console.log('Error reading session HR:', e);
             }
 
-            // Leer calorías reales de la sesión
+            // Leer calorías reales de la sesión con desduplicación
             try {
               const calRes = await HealthConnect.readRecords('ActiveCaloriesBurned', {
                 timeRangeFilter: { operator: 'between', startTime, endTime }
               });
-              if (calRes && calRes.records) {
-                calories = Math.round(calRes.records.reduce((acc, r) => acc + ((r.energy && r.energy.inKilocalories) || 0), 0));
+              const calRecords = selectBestRecords(calRes?.records);
+              if (calRecords.length > 0) {
+                calories = Math.round(calRecords.reduce((acc, r) => acc + ((r.energy && r.energy.inKilocalories) || 0), 0));
               }
             } catch (e) {}
 
