@@ -447,9 +447,11 @@ export default function App() {
               if (o.includes('mi.health') || o.includes('xiaomi') || o.includes('wearable') || o.includes('zepp')) return 100;
               // 2. Otras bandas y smartwatches reconocidos
               if (o.includes('shealth') || o.includes('samsung') || o.includes('garmin') || o.includes('fitbit') || o.includes('polar') || o.includes('whoop') || o.includes('huawei')) return 80;
-              // 3. Google Fit / Servicios del teléfono
+              // 3. Google Fit
               if (o.includes('fitness') || o.includes('google')) return 50;
-              // 4. Otros
+              // 4. Sensor del teléfono / Health Connect Phone (mínima prioridad, solo fallback si la pulsera no sincronizó aún)
+              if (o.includes('phone') || o.includes('healthconnect') || o.includes('android')) return 5;
+              // 5. Otros
               return 10;
             };
 
@@ -477,13 +479,14 @@ export default function App() {
             const formatFriendlySourceName = (sourceApp) => {
               if (!sourceApp) return 'Health Connect';
               const s = sourceApp.toLowerCase();
-              if (s.includes('mi.health') || s.includes('xiaomi')) return 'Mi Fitness (Xiaomi)';
+              if (s.includes('mi.health') || s.includes('xiaomi') || s.includes('wearable')) return 'Mi Fitness (Xiaomi)';
               if (s.includes('zepp')) return 'Zepp Life';
               if (s.includes('shealth') || s.includes('samsung')) return 'Samsung Health';
               if (s.includes('fitbit')) return 'Fitbit';
               if (s.includes('garmin')) return 'Garmin';
               if (s.includes('fitness') || s.includes('google')) return 'Google Fit';
-              return sourceApp;
+              if (s.includes('healthconnect') || s.includes('phone') || s.includes('android')) return 'Sensor del Teléfono';
+              return 'Health Connect';
             };
 
             // 1. Leer pasos de hoy desduplicando la fuente para no sumar el podómetro del móvil y la pulsera

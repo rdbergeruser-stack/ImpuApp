@@ -23,6 +23,18 @@ export function renderHomeHub(container, navigate) {
   const stepsGoal = 10000;
   const stepsPercent = Math.min(100, Math.round(((bandStats.steps || 0) / stepsGoal) * 100));
 
+  const srcLower = (bandStats.sourceApp || '').toLowerCase();
+  const isXiaomiInitial = srcLower.includes('mi fitness') || srcLower.includes('xiaomi');
+  const isPhoneInitial = srcLower.includes('teléfono') || srcLower.includes('phone') || srcLower.includes('healthconnect');
+  const initialSubtitle = isXiaomiInitial
+    ? 'Sincronizado con Mi Fitness (Xiaomi)'
+    : isPhoneInitial
+      ? 'Sensor del Teléfono · Abre Mi Fitness para sincronizar pulsera'
+      : `Sincronizado con ${bandStats.sourceApp || 'Health Connect'}`;
+  const initialDotClass = isXiaomiInitial
+    ? 'bg-emerald-400 animate-pulse'
+    : (isPhoneInitial ? 'bg-amber-400' : 'bg-emerald-400');
+
   const html = `
     <div class="w-full h-full flex flex-col justify-between overflow-hidden bg-background select-none">
       ${renderHeader({ title: 'ImpuApp', subtitle: 'HOLA, ' + (settings.athleteName || 'ATLETA') })}
@@ -64,9 +76,9 @@ export function renderHomeHub(container, navigate) {
                 <div>
                   <span class="font-headline text-xs font-black uppercase tracking-wider text-primary flex items-center gap-1.5 leading-none">
                     XIAOMI SMART BAND 9
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
+                    <span id="band-status-dot" class="w-2 h-2 rounded-full ${initialDotClass} inline-block"></span>
                   </span>
-                  <span id="band-sync-subtitle" class="text-[10px] text-on-surface-variant font-medium">Sincronizado con ${bandStats.sourceApp || 'Health Connect'}</span>
+                  <span id="band-sync-subtitle" class="text-[10px] text-on-surface-variant font-medium">${initialSubtitle}</span>
                 </div>
               </div>
               <div class="flex items-center gap-1">
@@ -256,9 +268,23 @@ export function renderHomeHub(container, navigate) {
     const bpmEl = document.getElementById('band-bpm-val');
     const barEl = document.getElementById('band-steps-bar');
     const subEl = document.getElementById('band-sync-subtitle');
+    const dotEl = document.getElementById('band-status-dot');
 
     if (subEl && d.sourceApp) {
-      subEl.textContent = `Sincronizado con ${d.sourceApp}`;
+      const srcName = (d.sourceApp || '').toLowerCase();
+      const isXiaomi = srcName.includes('mi fitness') || srcName.includes('xiaomi');
+      const isPhone = srcName.includes('teléfono') || srcName.includes('phone') || srcName.includes('healthconnect');
+
+      if (isXiaomi) {
+        subEl.textContent = 'Sincronizado con Mi Fitness (Xiaomi)';
+        if (dotEl) dotEl.className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse';
+      } else if (isPhone) {
+        subEl.textContent = 'Sensor del Teléfono · Abre Mi Fitness para sincronizar pulsera';
+        if (dotEl) dotEl.className = 'w-2 h-2 rounded-full bg-amber-400 inline-block';
+      } else {
+        subEl.textContent = `Sincronizado con ${d.sourceApp}`;
+        if (dotEl) dotEl.className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block';
+      }
     }
 
     if (stepsEl && typeof d.steps === 'number') {
