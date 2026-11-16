@@ -443,8 +443,8 @@ export default function App() {
             // Helpers locales para priorización y desduplicación de fuentes
             const getSourcePriority = (dataOrigin) => {
               const o = (dataOrigin || '').toLowerCase();
-              // 1. Xiaomi / Mi Fitness (Smart Band 9 Active, Mi Band, etc.)
-              if (o.includes('mi.health') || o.includes('xiaomi') || o.includes('wearable') || o.includes('zepp')) return 100;
+              // 1. Xiaomi / Mi Fitness / Notify for Xiaomi (Smart Band 9 Active, Mi Band, etc.)
+              if (o.includes('mi.health') || o.includes('xiaomi') || o.includes('wearable') || o.includes('zepp') || o.includes('miband') || o.includes('notify') || o.includes('mc.xiaomi')) return 100;
               // 2. Otras bandas y smartwatches reconocidos
               if (o.includes('shealth') || o.includes('samsung') || o.includes('garmin') || o.includes('fitbit') || o.includes('polar') || o.includes('whoop') || o.includes('huawei')) return 80;
               // 3. Google Fit
@@ -479,7 +479,8 @@ export default function App() {
             const formatFriendlySourceName = (sourceApp) => {
               if (!sourceApp) return 'Health Connect';
               const s = sourceApp.toLowerCase();
-              if (s.includes('mi.health') || s.includes('xiaomi') || s.includes('wearable')) return 'Mi Fitness (Xiaomi)';
+              if (s.includes('notify') || s.includes('mc.xiaomi') || s.includes('mc.miband')) return 'Notify for Xiaomi';
+              if (s.includes('mi.health') || s.includes('xiaomi') || s.includes('wearable') || s.includes('miband')) return 'Mi Fitness (Xiaomi)';
               if (s.includes('zepp')) return 'Zepp Life';
               if (s.includes('shealth') || s.includes('samsung')) return 'Samsung Health';
               if (s.includes('fitbit')) return 'Fitbit';
@@ -595,7 +596,7 @@ export default function App() {
 
             const getSourcePriority = (dataOrigin) => {
               const o = (dataOrigin || '').toLowerCase();
-              if (o.includes('mi.health') || o.includes('xiaomi') || o.includes('wearable') || o.includes('zepp')) return 100;
+              if (o.includes('mi.health') || o.includes('xiaomi') || o.includes('wearable') || o.includes('zepp') || o.includes('miband') || o.includes('notify') || o.includes('mc.xiaomi')) return 100;
               if (o.includes('shealth') || o.includes('samsung') || o.includes('garmin') || o.includes('fitbit') || o.includes('polar') || o.includes('whoop') || o.includes('huawei')) return 80;
               if (o.includes('fitness') || o.includes('google')) return 50;
               return 10;

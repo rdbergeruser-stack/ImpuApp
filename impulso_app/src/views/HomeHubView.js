@@ -24,10 +24,10 @@ export function renderHomeHub(container, navigate) {
   const stepsPercent = Math.min(100, Math.round(((bandStats.steps || 0) / stepsGoal) * 100));
 
   const srcLower = (bandStats.sourceApp || '').toLowerCase();
-  const isXiaomiInitial = srcLower.includes('mi fitness') || srcLower.includes('xiaomi');
+  const isXiaomiInitial = srcLower.includes('mi fitness') || srcLower.includes('xiaomi') || srcLower.includes('notify') || srcLower.includes('miband');
   const isPhoneInitial = srcLower.includes('teléfono') || srcLower.includes('phone') || srcLower.includes('healthconnect');
   const initialSubtitle = isXiaomiInitial
-    ? 'Sincronizado con Mi Fitness (Xiaomi)'
+    ? (srcLower.includes('notify') ? 'Sincronizado con Notify for Xiaomi' : 'Sincronizado con Mi Fitness (Xiaomi)')
     : isPhoneInitial
       ? 'Sensor del Teléfono · Abre Mi Fitness para sincronizar pulsera'
       : `Sincronizado con ${bandStats.sourceApp || 'Health Connect'}`;
@@ -272,11 +272,11 @@ export function renderHomeHub(container, navigate) {
 
     if (subEl && d.sourceApp) {
       const srcName = (d.sourceApp || '').toLowerCase();
-      const isXiaomi = srcName.includes('mi fitness') || srcName.includes('xiaomi');
+      const isXiaomi = srcName.includes('mi fitness') || srcName.includes('xiaomi') || srcName.includes('notify') || srcName.includes('miband');
       const isPhone = srcName.includes('teléfono') || srcName.includes('phone') || srcName.includes('healthconnect');
 
       if (isXiaomi) {
-        subEl.textContent = 'Sincronizado con Mi Fitness (Xiaomi)';
+        subEl.textContent = srcName.includes('notify') ? 'Sincronizado con Notify for Xiaomi' : 'Sincronizado con Mi Fitness (Xiaomi)';
         if (dotEl) dotEl.className = 'w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse';
       } else if (isPhone) {
         subEl.textContent = 'Sensor del Teléfono · Abre Mi Fitness para sincronizar pulsera';
