@@ -5,6 +5,7 @@ import { WebView } from 'react-native-webview';
 import { useKeepAwake } from 'expo-keep-awake';
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { APP_HTML } from './appHtml.js';
 
@@ -19,6 +20,74 @@ export default function App() {
   const restTargetTimeRef = useRef(null);
   const [injectedStorageScript, setInjectedStorageScript] = useState('');
   const [availableVoices, setAvailableVoices] = useState([]);
+  const duckSoundRef = useRef(null);
+  const duckTimeoutRef = useRef(null);
+  const isDuckingRef = useRef(false);
+
+  // Modo de audio con Ducking activo: baja el volumen de Spotify/música mientras Sofia o Mateo hablan
+  useEffect(() => {
+    let soundObj = null;
+    async function initAudioMode() {
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          staysActiveInBackground: true,
+          playsInSilentModeIOS: true,
+          shouldDuckAndroid: true,
+          interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+          interruptionModeIOS: InterruptionModeIOS.DuckOthers,
+          playThroughEarpieceAndroid: false,
+        });
+
+        try {
+          const { sound } = await Audio.Sound.createAsync(
+            require('./assets/silence.wav'),
+            { shouldPlay: false, isLooping: true, volume: 0.05 }
+          );
+          soundObj = sound;
+          duckSoundRef.current = sound;
+        } catch (soundErr) {
+          console.warn('Audio.Sound init notice:', soundErr);
+        }
+      } catch (err) {
+        console.warn('Audio.setAudioModeAsync error:', err);
+      }
+    }
+    initAudioMode();
+
+    return () => {
+      if (soundObj) {
+        soundObj.unloadAsync().catch(() => {});
+      }
+    };
+  }, []);
+
+  const startAudioDucking = async () => {
+    try {
+      if (duckTimeoutRef.current) {
+        clearTimeout(duckTimeoutRef.current);
+        duckTimeoutRef.current = null;
+      }
+      if (duckSoundRef.current && !isDuckingRef.current) {
+        isDuckingRef.current = true;
+        await duckSoundRef.current.playAsync();
+      }
+    } catch (e) {}
+  };
+
+  const stopAudioDucking = (delayMs = 1200) => {
+    if (duckTimeoutRef.current) {
+      clearTimeout(duckTimeoutRef.current);
+    }
+    duckTimeoutRef.current = setTimeout(async () => {
+      try {
+        if (duckSoundRef.current && isDuckingRef.current) {
+          isDuckingRef.current = false;
+          await duckSoundRef.current.pauseAsync();
+        }
+      } catch (e) {}
+    }, delayMs);
+  };
 
   // Sincronización al volver de segundo plano
   useEffect(() => {
@@ -186,12 +255,15 @@ export default function App() {
     if (!text) return;
     try {
       const isSofia = (gender === 'female' || gender === 'sofia');
-      const isCountdown = (text === 'Tres' || text === 'Dos' || text === 'Uno' || text === '3' || text === '2' || text === '1');
+      const isCountdown = [
+        '10', '9', '8', '7', '6', '5', '4', '3', '2', '1',
+        'Diez', 'Nueve', 'Ocho', 'Siete', 'Seis', 'Cinco', 'Cuatro', 'Tres', 'Dos', 'Uno'
+      ].includes(text);
 
-      // Solo si arranca el conteo 3-2-1 en 'Tres' cancelamos frases largas previas para evitar retraso.
+      // Solo si arranca un conteo (en 10 o en 3) cancelamos frases largas previas para evitar retraso.
       // IMPORTANTE: Para frases normales NUNCA llamamos Speech.stop() antes de speak() porque en Android
       // TextToSpeech vacía la cola y descarta asíncronamente el speak inmediato.
-      if (text === 'Tres' || text === '3') {
+      if (text === 'Diez' || text === '10' || text === 'Tres' || text === '3') {
         try { Speech.stop(); } catch (e) {}
       }
 
@@ -218,7 +290,7 @@ export default function App() {
       // 3. Calibración acústica nítida:
       // Sofía: 1.15 (tono femenino enérgico, claro) y velocidad 1.02
       // Mateo: 0.80 (tono masculino grave, firme) y velocidad 0.96
-      // Conteos 3-2-1: velocidad 1.25 para sincronía exacta con el segundero
+      // Conteos 3-2-1 / 10s: velocidad 1.25 para sincronía exacta con el segundero
       const defaultPitch = isSofia ? 1.15 : 0.80;
       const defaultRate = isCountdown ? 1.25 : (isSofia ? 1.02 : 0.96);
 
@@ -230,8 +302,18 @@ export default function App() {
         pitch: pitch,
         rate: rate,
         volume: 1.0,
+        onStart: () => {
+          startAudioDucking();
+        },
+        onDone: () => {
+          stopAudioDucking(isCountdown ? 1200 : 500);
+        },
+        onStopped: () => {
+          stopAudioDucking(300);
+        },
         onError: (err) => {
           console.warn('Speech.speak standard error, attempting fallback:', err);
+          stopAudioDucking(300);
           try {
             Speech.speak(text, { language: 'es', pitch, rate, volume: 1.0 });
           } catch (e2) {}
@@ -244,6 +326,7 @@ export default function App() {
         speakOptions.voice = matchedVoice.identifier;
       }
 
+      startAudioDucking();
       Speech.speak(text, speakOptions);
     } catch (e) {
       console.warn('speakNative exception:', e);
@@ -257,15 +340,21 @@ export default function App() {
     try {
       const data = JSON.parse(event.nativeEvent.data);
 
-      // 1. NATIVE TTS SPEECH ENGINE
+      // 1. NATIVE TTS SPEECH ENGINE & DUCKING
       if (data.type === 'SPEECH_SPEAK') {
         speakNative(data.text, data.gender, data.pitch, data.rate, data.voiceId);
       } else if (data.type === 'SPEECH_STOP') {
         try { Speech.stop(); } catch (e) {}
+        stopAudioDucking(100);
       } else if (data.type === 'SPEECH_PREWARM') {
+        startAudioDucking();
         try {
           Speech.speak(' ', { language: 'es', volume: 0, rate: 2.0 });
         } catch (e) {}
+      } else if (data.type === 'AUDIO_DUCK_START') {
+        startAudioDucking();
+      } else if (data.type === 'AUDIO_DUCK_STOP') {
+        stopAudioDucking(data.delayMs || 500);
       }
 
       // 2. NATIVE PERSISTENCE BRIDGE (ASYNC-STORAGE)

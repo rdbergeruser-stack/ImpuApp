@@ -18,8 +18,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/rdbergeruser-stack/ImpuApp/releases/download/v1.0.16/impuapp-v1.0.16.apk">
-    <img src="https://img.shields.io/badge/📲_DESCARGAR_APK-impuapp--v1.0.16.apk-00ff66?style=for-the-badge&logo=android&logoColor=black" alt="Descargar impuapp-v1.0.16.apk" />
+  <a href="https://github.com/rdbergeruser-stack/ImpuApp/releases/download/v1.0.17/impuapp-v1.0.17.apk">
+    <img src="https://img.shields.io/badge/📲_DESCARGAR_APK-impuapp--v1.0.17.apk-00ff66?style=for-the-badge&logo=android&logoColor=black" alt="Descargar impuapp-v1.0.17.apk" />
   </a>
 </p>
 
@@ -29,8 +29,10 @@
 
 ### ⏱️ 1. Reloj Tabata & HIIT de Alta Intensidad
 - **Intervalos de alta precisión**: Configuración libre de tiempo de preparación, trabajo, descanso, ciclos y series.
-- **Entrenador por Voz en Español**: Guiado vocal nativo con dos voces seleccionables (**Sofía** y **Mateo**), calibradas para una sincronización exacta con el conteo regresivo 3-2-1.
-- **Alertas Hápticas y Sonoras**: Señales de audio binaural y vibraciones táctiles al cambiar de fase.
+- **Entrenador por Voz en Español**: Guiado vocal nativo con dos voces seleccionables (**Sofía** y **Mateo**), calibradas para una sincronización exacta con el conteo regresivo.
+- **Conteo extendido a los 10 segundos entre series**: En los descansos entre serie y serie de Tabata, la cuenta regresiva comienza a los 10 segundos para dar tiempo suficiente de alistarse antes de comenzar el siguiente bloque.
+- **Audio Ducking Inteligente para Música & Auriculares**: Atenúa automáticamente el volumen de tu música (Spotify, YouTube Music, podcasts) en tus auriculares mientras los entrenadores hablan o suenan los pitidos, y restaura el volumen de la música con total fluidez al terminar.
+- **Alertas Hápticas y Sonoras Potenciadas**: Señales de audio con volumen amplificado y vibraciones táctiles al cambiar de fase.
 - **Mantener pantalla encendida (WakeLock)**: Evita que el celular se apague durante el entrenamiento.
 
 ### 🏃 2. Reloj Runner por Zonas Cardíacas (Z1 a Z5)

@@ -119,21 +119,47 @@ export function renderTabataLive(container, navigate, params = {}) {
     // 1. Sincronización visual inmediata a los 0ms del segundo
     updateUI();
 
-    // 2. Pre-calentar el canal de audio a los 4s para cero latencia al decir 'Tres'
-    if (remainingInStep === 4) {
-      audio.prewarm();
-    } else if (remainingInStep === 3) {
-      audio.playCountdown();
-      audio.speak('Tres', { rate: 1.25 });
-      hapticCountdown();
-    } else if (remainingInStep === 2) {
-      audio.playCountdown();
-      audio.speak('Dos', { rate: 1.25 });
-      hapticCountdown();
-    } else if (remainingInStep === 1) {
-      audio.playCountdown();
-      audio.speak('Uno', { rate: 1.25 });
-      hapticCountdown();
+    const currentStep = steps[currentStepIdx];
+    const isRestBetween = currentStep && currentStep.type === 'restBetween';
+
+    if (isRestBetween) {
+      // Entre serie y serie de Tabata: cuenta regresiva desde los 10 segundos para dar tiempo a prepararse
+      if (remainingInStep === 11) {
+        audio.prewarm();
+      } else if (remainingInStep <= 10 && remainingInStep >= 1) {
+        const countdownWords = {
+          10: 'Diez',
+          9: 'Nueve',
+          8: 'Ocho',
+          7: 'Siete',
+          6: 'Seis',
+          5: 'Cinco',
+          4: 'Cuatro',
+          3: 'Tres',
+          2: 'Dos',
+          1: 'Uno'
+        };
+        audio.playCountdown();
+        audio.speak(countdownWords[remainingInStep], { rate: 1.25 });
+        hapticCountdown();
+      }
+    } else {
+      // Intervalos habituales (trabajo, descansos activos simples, preparación): conteo 3-2-1
+      if (remainingInStep === 4) {
+        audio.prewarm();
+      } else if (remainingInStep === 3) {
+        audio.playCountdown();
+        audio.speak('Tres', { rate: 1.25 });
+        hapticCountdown();
+      } else if (remainingInStep === 2) {
+        audio.playCountdown();
+        audio.speak('Dos', { rate: 1.25 });
+        hapticCountdown();
+      } else if (remainingInStep === 1) {
+        audio.playCountdown();
+        audio.speak('Uno', { rate: 1.25 });
+        hapticCountdown();
+      }
     }
 
     if (remainingInStep <= 0) {

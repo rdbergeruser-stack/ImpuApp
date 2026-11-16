@@ -98,7 +98,7 @@ class AudioService {
       osc.type = type;
       osc.frequency.setValueAtTime(frequency, this.ctx.currentTime);
 
-      const targetGain = this.volume * 0.4 * gainMultiplier;
+      const targetGain = this.volume * 0.95 * gainMultiplier;
       gain.gain.setValueAtTime(targetGain, this.ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + (durationMs / 1000));
 
@@ -107,7 +107,27 @@ class AudioService {
 
       osc.start();
       osc.stop(this.ctx.currentTime + (durationMs / 1000));
+      this.notifyDuck(durationMs + 300);
     } catch (e) {}
+  }
+
+  notifyDuck(delayMs = 600) {
+    if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+      try {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'AUDIO_DUCK_START'
+        }));
+        if (this._duckTimeout) clearTimeout(this._duckTimeout);
+        this._duckTimeout = setTimeout(() => {
+          try {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'AUDIO_DUCK_STOP',
+              delayMs: 300
+            }));
+          } catch(e) {}
+        }, delayMs);
+      } catch (e) {}
+    }
   }
 
   playCountdown() {
@@ -172,7 +192,10 @@ class AudioService {
     if (!this.voiceEnabled || !text) return;
     const gender = options.gender || this.voiceGender || 'female';
     const isFemale = (gender === 'female' || gender === 'sofia');
-    const isCountdown = (text === 'Tres' || text === 'Dos' || text === 'Uno' || text === '3' || text === '2' || text === '1');
+    const isCountdown = [
+      '10', '9', '8', '7', '6', '5', '4', '3', '2', '1',
+      'Diez', 'Nueve', 'Ocho', 'Siete', 'Seis', 'Cinco', 'Cuatro', 'Tres', 'Dos', 'Uno'
+    ].includes(text);
     
     // Valores por defecto calibrados para máxima naturalidad y distinción acústica:
     // Conteo 3-2-1: 1.25 para sincronía exacta con el segundo del reloj
